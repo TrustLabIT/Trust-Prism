@@ -1,0 +1,105 @@
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { api } from "../api/client";
+
+const qs = (params) => {
+  const p = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "" && v !== "all") p.set(k, v);
+  });
+  const s = p.toString();
+  return s ? `?${s}` : "";
+};
+
+// Library list — paginated + filtered. append=true keeps existing items (infinite scroll).
+export const fetchAssets = createAsyncThunk("assets/fetch", async (params = {}) => {
+  const { append, ...q } = params;
+  const data = await api.get(`/assets${qs(q)}`);
+  return { ...data, append: !!append };
+});
+
+export const fetchAssetStats = createAsyncThunk("assets/stats", async () => api.get("/assets/stats"));
+
+export const fetchApprovals = createAsyncThunk("assets/approvals", async () => {
+  const { assets } = await api.get("/assets?status=pending&limit=100");
+  return assets;
+});
+
+export const fetchAnalytics = createAsyncThunk("assets/analytics", async () => api.get("/assets/analytics"));
+
+export const uploadImage = createAsyncThunk("assets/upload", async (formData, thunkAPI) => {
+  const { asset } = await api.postForm("/assets", formData);
+  thunkAPI.dispatch(fetchAssetStats());
+  thunkAPI.dispatch(fetchApprovals());
+  return asset;
+});
+
+export const confirmUpload = createAsyncThunk("assets/confirmUpload", async (payload, thunkAPI) => {
+  const { asset } = await api.confirm(payload);
+  thunkAPI.dispatch(fetchAssetStats());
+  thunkAPI.dispatch(fetchApprovals());
+  return asset;
+});
+
+export const lodgeOutcome = createAsyncThunk("assets/lodge", async ({ id, outcome }) => {
+  const { asset } = await api.post(`/assets/${id}/outcomes`, outcome);
+  return asset;
+});
+
+export const updateStatus = createAsyncThunk("assets/updateStatus", async ({ id, status }, thunkAPI) => {
+  const { asset } = await api.patch(`/assets/${id}/status`, { status });
+  thunkAPI.dispatch(fetchAssetStats());
+  thunkAPI.dispatch(fetchApprovals());
+  return asset;
+});
+
+export const updateAsset = createAsyncThunk("assets/update", async ({ id, patch }) => {
+  const { asset } = await api.patch(`/assets/${id}`, patch);
+  return asset;
+});
+
+export const downloadAsset = createAsyncThunk("assets/download", async (id) => {
+  const { url } = await api.get(`/assets/${id}/url`);
+  return url;
+});
+
+export const deleteAsset = createAsyncThunk("assets/delete", async (id, thunkAPI) => {
+  await api.del(`/assets/${id}`);
+  thunkAPI.dispatch(fetchAssetStats());
+  return id;
+});
+
+const replaceIn = (list, asset) => {
+  const i = list.findIndex((a) => a.id === asset.id);
+  if (i !== -1) list[i] = asset;
+};
+
+const assetsSlice = createSlice({
+  name: "assets",
+  initialState: {
+    items: [], total: 0, page: 1, hasMore: false, status: "idle", error: null,
+    stats: { total: 0, pending: 0 },
+    approvals: [],
+    analytics: { total: 0, top: [] },
+  },
+  reducers: {},
+  extraReducers: (b) => {
+    b.addCase(fetchAssets.pending, (s) => { s.status = "loading"; });
+    b.addCase(fetchAssets.fulfilled, (s, a) => {
+      s.status = "idle";
+      s.items = a.payload.append ? s.items.concat(a.payload.assets) : a.payload.assets;
+      s.total = a.payload.total; s.page = a.payload.page; s.hasMore = a.payload.hasMore;
+    });
+    b.addCase(fetchAssets.rejected, (s, a) => { s.status = "failed"; s.error = a.error.message; });
+    b.addCase(fetchAssetStats.fulfilled, (s, a) => { s.stats = a.payload; });
+    b.addCase(fetchApprovals.fulfilled, (s, a) => { s.approvals = a.payload; });
+    b.addCase(fetchAnalytics.fulfilled, (s, a) => { s.analytics = a.payload; });
+    b.addCase(uploadImage.fulfilled, (s, a) => { s.items.unshift(a.payload); s.total += 1; });
+    b.addCase(confirmUpload.fulfilled, (s, a) => { s.items.unshift(a.payload); s.total += 1; });
+    b.addCase(lodgeOutcome.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
+    b.addCase(updateStatus.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
+    b.addCase(updateAsset.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
+    b.addCase(deleteAsset.fulfilled, (s, a) => { s.items = s.items.filter((x) => x.id !== a.payload); s.total = Math.max(0, s.total - 1); });
+  },
+});
+
+export default assetsSlice.reducer;
