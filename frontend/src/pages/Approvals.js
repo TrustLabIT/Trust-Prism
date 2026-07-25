@@ -22,7 +22,7 @@ export default function Approvals() {
 
   const approve = async (a, e) => {
     e.stopPropagation();
-    try { await updateStatus(a.id, "approved"); toast(`Approved "${a.n}" ✓`); }
+    try { await updateStatus(a.id, "approved"); toast(`Approved "${a.n}"`); }
     catch (err) { toast(err.message || "Could not approve"); }
   };
 
@@ -47,7 +47,7 @@ export default function Approvals() {
       </div>
 
       {rows.length === 0
-        ? <div className="empty">Nothing awaiting approval right now. 🎉</div>
+        ? <div className="empty">Nothing awaiting approval right now.</div>
         : (
           <div className="table">
             <div className="trow head"><div></div><div>Asset</div><div>Stage</div><div>Assignee</div><div>Status</div><div></div></div>

@@ -1,16 +1,27 @@
 import { useState, useEffect, useRef } from "react";
+import PhotoLibraryOutlinedIcon from "@mui/icons-material/PhotoLibraryOutlined";
+import MovieOutlinedIcon from "@mui/icons-material/MovieOutlined";
+import DevicesOtherOutlinedIcon from "@mui/icons-material/DevicesOtherOutlined";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
+import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import { useApp } from "../context/AppContext";
 import AssetCard from "../components/AssetCard";
+import SkeletonGrid from "../components/SkeletonCard";
 import { catLabel, mediaTax } from "../data/prismData";
 
+const ci = { fontSize: 15 };
 const CATS = [
-  ["all", "All media"], ["Videos", "🎬 Videos"],
-  ["Electronic", "💻 Electronic media"], ["Print", "🖨️ Print media"],
+  ["all", <><PhotoLibraryOutlinedIcon sx={ci} />All media</>],
+  ["Videos", <><MovieOutlinedIcon sx={ci} />Videos</>],
+  ["Electronic", <><DevicesOtherOutlinedIcon sx={ci} />Electronic media</>],
+  ["Print", <><PrintOutlinedIcon sx={ci} />Print media</>],
 ];
 const PAGE = 24;
 
 export default function Library() {
-  const { assets, assetsStatus, hasMore, assetPage, searchTerm, fetchAssets } = useApp();
+  const { assets, assetsStatus, hasMore, assetPage, searchTerm, fetchAssets, assetsKey } = useApp();
   const [cat, setCat] = useState("all");
   const [sub, setSub] = useState("all");
   const [year, setYear] = useState("all");
@@ -18,9 +29,15 @@ export default function Library() {
   const sentinel = useRef(null);
 
   const loading = assetsStatus === "loading";
+  const currentKey = [cat, sub, year, searchTerm, ""].join("|");
+  // data in the store belongs to THIS view only when its key matches — until then
+  // we show a loading state (never the previous view's stale cards)
+  const ready = assetsKey === currentKey;
 
-  // (Re)load page 1 whenever filters/search change — debounced (server-side filtering)
+  // (Re)load page 1 when the view changes — but SKIP if this exact view is already
+  // loaded (so returning to the screen or reselecting a filter uses the cache, no refetch).
   useEffect(() => {
+    if (currentKey === assetsKey) return;
     const t = setTimeout(() => {
       fetchAssets({ cat, sub, year, search: searchTerm, page: 1, limit: PAGE });
     }, 250);
@@ -62,14 +79,16 @@ export default function Library() {
             onClick={() => { setCat(c); setSub("all"); }}>{label}</button>
         ))}
         <div className="spacer"></div>
-        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>📅 Year</label>
+        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <CalendarMonthOutlinedIcon sx={{ fontSize: 15 }} /> Year
+        </label>
         <select className="yearsel" value={year} onChange={(e) => setYear(e.target.value)}>
           <option value="all">All years</option><option value="2026">2026</option>
           <option value="2025">2025</option><option value="2024">2024</option>
         </select>
         <div className="viewtoggle">
-          <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>▦</button>
-          <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>≣</button>
+          <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><GridViewOutlinedIcon sx={{ fontSize: 16 }} /></button>
+          <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}><ViewListOutlinedIcon sx={{ fontSize: 18 }} /></button>
         </div>
       </div>
 
@@ -85,28 +104,31 @@ export default function Library() {
         </div>
       )}
 
-      {assets.length === 0 && !loading && (
+      {!ready ? (
+        <SkeletonGrid count={8} />
+      ) : assets.length === 0 ? (
         <div className="empty">No assets match. Upload one with <b>New Asset</b>, or adjust your filters.</div>
+      ) : (
+        <>
+          {loading && <div className="lib-bar" />}
+          {year !== "all"
+            ? <Grid items={assets} />
+            : years.map((y) => {
+                const items = assets.filter((a) => a.year === y);
+                return (
+                  <div className="year-sec" key={y}>
+                    <div className="year-head">
+                      <span className="yr">{y}</span>
+                      <span className="yc">{items.length} asset{items.length > 1 ? "s" : ""}{hasMore ? "+" : ""}</span>
+                      <span className="yl"></span>
+                    </div>
+                    <Grid items={items} />
+                  </div>
+                );
+              })}
+          <div ref={sentinel} style={{ height: 1 }}></div>
+        </>
       )}
-
-      {year !== "all"
-        ? <Grid items={assets} />
-        : years.map((y) => {
-            const items = assets.filter((a) => a.year === y);
-            return (
-              <div className="year-sec" key={y}>
-                <div className="year-head">
-                  <span className="yr">{y}</span>
-                  <span className="yc">{items.length} asset{items.length > 1 ? "s" : ""}{hasMore ? "+" : ""}</span>
-                  <span className="yl"></span>
-                </div>
-                <Grid items={items} />
-              </div>
-            );
-          })}
-
-      {loading && <div className="empty" style={{ padding: "24px" }}>Loading…</div>}
-      <div ref={sentinel} style={{ height: 1 }}></div>
     </section>
   );
 }

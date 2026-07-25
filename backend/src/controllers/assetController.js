@@ -43,6 +43,7 @@ const list = asyncHandler(async (req, res) => {
   if (year && year !== "all") filter.year = year;
   if (status === "pending") filter.status = { $in: ["draft", "review"] };
   else if (status && status !== "all") filter.status = status;
+  if (req.query.collection) filter.collectionRef = req.query.collection;
   if (search) {
     const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     filter.$or = [{ name: rx }, { tags: rx }, { sub: rx }, { cat: rx }];
@@ -129,6 +130,7 @@ const uploadImage = asyncHandler(async (req, res) => {
     org: req.user.org,
     date: b.date || new Date().toISOString().slice(0, 10),
     year: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 4),
+    collectionRef: b.collection || null,
   });
 
   // hand back the asset with a viewable URL immediately
@@ -165,20 +167,36 @@ const confirmUpload = asyncHandler(async (req, res) => {
     org: req.user.org,
     date: b.date || new Date().toISOString().slice(0, 10),
     year: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 4),
+    collectionRef: b.collection || null,
   });
   res.status(201).json({ asset: await withUrl(asset) });
 });
 
 // GET /api/assets/:id/url  — fresh presigned link that FORCES a download (counts a download)
+const APPROVER_ROLES = ["Super Admin", "Brand Manager", "Reviewer"];
 const downloadUrl = asyncHandler(async (req, res) => {
   const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
   if (!a) return res.status(404).json({ error: "Asset not found" });
+  // Only approved assets can be downloaded/shared — reviewers & the owner may still fetch to review
+  const isApprover = APPROVER_ROLES.includes(req.user.role);
+  const isOwner = String(a.owner) === String(req.user.id);
+  if (a.status !== "approved" && !isApprover && !isOwner) {
+    return res.status(403).json({ error: "This asset isn't approved yet — it can't be downloaded or shared until it's approved." });
+  }
   const ext = (a.s3Key.match(/\.[^.]+$/) || [""])[0];
   const filename = `${a.name.replace(/[^\w.-]+/g, "_")}${ext}`;
   const url = await s3.presignDownload(a.s3Key, 900, { download: true, filename });
-  a.dl += 1;
-  await a.save();
-  res.json({ url });
+  // record the download (who, why, when) — capped to the last 50 entries
+  const reason = (req.query.reason || req.body.reason || "").toString().slice(0, 100);
+  await Asset.updateOne(
+    { _id: a._id },
+    {
+      $inc: { dl: 1 },
+      $push: { downloadLog: { $each: [{ by: req.user.name, userId: req.user.id, reason, date: new Date() }], $slice: -50 } },
+    }
+  );
+  const fresh = await Asset.findById(a._id);
+  res.json({ url, asset: await withUrl(fresh) });
 });
 
 // PATCH /api/assets/:id  — edit metadata (owner, Brand Manager or Super Admin)
@@ -196,6 +214,7 @@ const update = asyncHandler(async (req, res) => {
   if (b.tags !== undefined) {
     a.tags = Array.isArray(b.tags) ? b.tags : String(b.tags).split(",").map((t) => t.trim()).filter(Boolean);
   }
+  if (b.collection !== undefined) a.collectionRef = b.collection || null;
   await a.save();
   res.json({ asset: await withUrl(a) });
 });
@@ -215,6 +234,17 @@ const updateStatus = asyncHandler(async (req, res) => {
   a.status = status;
   await a.save();
   res.json({ asset: await withUrl(a) });
+});
+
+// POST /api/assets/:id/comments  — anyone with access can comment
+const addComment = asyncHandler(async (req, res) => {
+  const text = (req.body.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Comment can't be empty" });
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  a.comments.push({ by: req.user.name, userId: req.user.id, text: text.slice(0, 1000), date: new Date() });
+  await a.save();
+  res.status(201).json({ asset: await withUrl(a) });
 });
 
 // POST /api/assets/:id/outcomes  — lodge a campaign outcome
@@ -239,4 +269,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, updateStatus, lodgeOutcome, remove };
+module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, updateStatus, addComment, lodgeOutcome, remove };

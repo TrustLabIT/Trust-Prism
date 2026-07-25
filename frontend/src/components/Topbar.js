@@ -4,7 +4,9 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import { useApp } from "../context/AppContext";
+import { confirmDialog } from "./Dialogs";
 import { initials } from "../utils/helpers";
 
 export default function Topbar({ onMenu }) {
@@ -16,7 +18,13 @@ export default function Topbar({ onMenu }) {
     navigate("/library");
   };
 
-  const doLogout = () => {
+  const doLogout = async () => {
+    const ok = await confirmDialog({
+      title: "Log out",
+      message: `Log out of Trust Prism${currentUser?.name ? ` as ${currentUser.name}` : ""}?`,
+      confirmLabel: "Log out",
+    });
+    if (!ok) return;
     logout();
     navigate("/login", { replace: true });
   };
@@ -31,7 +39,7 @@ export default function Topbar({ onMenu }) {
       <div className="search">
         <span className="si"><SearchIcon sx={{ fontSize: 18 }} /></span>
         <input value={searchTerm} onChange={onSearch} placeholder={'Search assets — try "blue product banner Q3"'} autoComplete="off" />
-        <span className="aihint">✨ AI Search</span>
+        <span className="aihint"><AutoAwesomeOutlinedIcon sx={{ fontSize: 12, verticalAlign: "-2px" }} /> AI Search</span>
       </div>
       <div className="spacer" style={{ flex: 1 }}></div>
 

@@ -1,5 +1,9 @@
 import { useState, memo } from "react";
+import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import Art from "./Art";
+import { OrgIcon } from "./Icon";
 import { useApp } from "../context/AppContext";
 import { grad, statusClass, statusLabel, fmtDate, idIndex } from "../utils/helpers";
 import { catLabel } from "../data/prismData";
@@ -15,11 +19,11 @@ function AssetCard({ asset: a }) {
         {a.t === "image" && a.url
           ? <img className="thumb-img" src={a.url} alt={a.n} loading="lazy" />
           : <Art index={idx} label={a.sub} />}
-        {a.t === "video" && <div className="play">▶</div>}
+        {a.t === "video" && <div className="play"><PlayArrowRoundedIcon sx={{ fontSize: 26, color: "#12131a" }} /></div>}
         <span className="type-badge">{a.sub}</span>
         <span className={"status-dot " + statusClass(a.st)}>{statusLabel(a.st)}</span>
         {canSeeAll && (
-          <span className="org-chip">{a.org === "Internal" ? "🏠 Internal" : "🏢 " + a.org}</span>
+          <span className="org-chip"><OrgIcon org={a.org} sx={{ fontSize: 12 }} />{a.org === "Internal" ? "Internal" : a.org}</span>
         )}
       </div>
       <div className="card-body">
@@ -32,7 +36,7 @@ function AssetCard({ asset: a }) {
           className={"fav" + (fav ? " on" : "")}
           onClick={(e) => { e.stopPropagation(); setFav((v) => !v); }}
         >
-          {fav ? "★" : "☆"}
+          {fav ? <StarRoundedIcon sx={{ fontSize: 18 }} /> : <StarBorderRoundedIcon sx={{ fontSize: 18 }} />}
         </button>
       </div>
     </div>

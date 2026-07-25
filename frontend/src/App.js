@@ -9,8 +9,10 @@ import { fetchTemplates } from "./store/templatesSlice";
 import { fetchBrandKit } from "./store/brandKitSlice";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
+import PublicShare from "./pages/PublicShare";
 import Library from "./pages/Library";
 import Collections from "./pages/Collections";
+import CollectionDetail from "./pages/CollectionDetail";
 import Approvals from "./pages/Approvals";
 import Shares from "./pages/Shares";
 import Templates from "./pages/Templates";
@@ -48,14 +50,16 @@ export default function App() {
   if (booting) {
     return <div className="empty" style={{ paddingTop: 120 }}>Loading Trust Prism…</div>;
   }
-
+  
   return (
     <Routes>
+      <Route path="/s/:token" element={<PublicShare />} />
       <Route path="/login" element={user ? <Navigate to="/library" replace /> : <Login />} />
       <Route element={user ? <Layout /> : <Navigate to="/login" replace />}>
         <Route index element={<Navigate to="/library" replace />} />
         <Route path="/library" element={<Library />} />
         <Route path="/collections" element={<Collections />} />
+        <Route path="/collections/:id" element={<CollectionDetail />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/shares" element={<Shares />} />
         <Route path="/templates" element={<Templates />} />

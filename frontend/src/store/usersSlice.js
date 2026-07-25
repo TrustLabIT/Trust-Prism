@@ -16,6 +16,16 @@ export const toggleScope = createAsyncThunk("users/toggleScope", async (id) => {
   return user;
 });
 
+export const updateUser = createAsyncThunk("users/update", async ({ id, patch }) => {
+  const { user } = await api.patch(`/users/${id}`, patch);
+  return user;
+});
+
+export const setPassword = createAsyncThunk("users/setPassword", async ({ id, password }) => {
+  const { user } = await api.patch(`/users/${id}/password`, { password });
+  return user;
+});
+
 export const removeUser = createAsyncThunk("users/remove", async (id) => {
   await api.del(`/users/${id}`);
   return id;
@@ -31,6 +41,14 @@ const usersSlice = createSlice({
     b.addCase(fetchUsers.rejected, (s, a) => { s.status = "failed"; s.error = a.error.message; });
     b.addCase(addUser.fulfilled, (s, a) => { s.items.push(a.payload.user); });
     b.addCase(toggleScope.fulfilled, (s, a) => {
+      const i = s.items.findIndex((u) => u.id === a.payload.id);
+      if (i !== -1) s.items[i] = a.payload;
+    });
+    b.addCase(updateUser.fulfilled, (s, a) => {
+      const i = s.items.findIndex((u) => u.id === a.payload.id);
+      if (i !== -1) s.items[i] = a.payload;
+    });
+    b.addCase(setPassword.fulfilled, (s, a) => {
       const i = s.items.findIndex((u) => u.id === a.payload.id);
       if (i !== -1) s.items[i] = a.payload;
     });

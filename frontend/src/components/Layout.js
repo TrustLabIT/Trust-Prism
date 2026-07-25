@@ -6,6 +6,7 @@ import ViewBanner from "./ViewBanner";
 import DetailDrawer from "./DetailDrawer";
 import Modals from "./Modals";
 import Toast from "./Toast";
+import Dialogs from "./Dialogs";
 import { useApp } from "../context/AppContext";
 
 export default function Layout() {
@@ -38,6 +39,7 @@ export default function Layout() {
       </div>
       <DetailDrawer />
       <Modals />
+      <Dialogs />
       <Toast />
     </div>
   );

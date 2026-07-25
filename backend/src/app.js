@@ -12,6 +12,7 @@ const usersRouter = require("./routes/users");
 const sharesRouter = require("./routes/shares");
 const templatesRouter = require("./routes/templates");
 const brandKitRouter = require("./routes/brandkit");
+const publicRouter = require("./routes/public");
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/shares", sharesRouter);
 app.use("/api/templates", templatesRouter);
 app.use("/api/brandkit", brandKitRouter);
+app.use("/api/public", publicRouter); // no auth — public share portal
 
 app.get("/", (req, res) => {
   res.json({ service: "trust-prism-backend", status: "ok" });

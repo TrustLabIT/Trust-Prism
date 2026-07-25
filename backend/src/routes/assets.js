@@ -24,6 +24,7 @@ router.get("/:id", ctrl.getOne);
 router.get("/:id/url", ctrl.downloadUrl);
 router.patch("/:id", ctrl.update);
 router.patch("/:id/status", ctrl.updateStatus);
+router.post("/:id/comments", ctrl.addComment);
 router.post("/:id/outcomes", ctrl.lodgeOutcome);
 router.delete("/:id", ctrl.remove);
 

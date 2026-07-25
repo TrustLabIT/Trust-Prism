@@ -1,8 +1,25 @@
 import { useState } from "react";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import CheckIcon from "@mui/icons-material/Check";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
+import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
+import BoltIcon from "@mui/icons-material/Bolt";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import Art from "./Art";
+import { confirmDialog } from "./Dialogs";
 import { useApp } from "../context/AppContext";
 import {
-  grad, fmtDate, statusLabel, statusClass, idIndex,
+  grad, fmtDate, statusLabel, statusClass, idIndex, initials, avColor,
   nf, money, chMeta, perfTotals,
 } from "../utils/helpers";
 import { TYPES, channels } from "../data/prismData";
@@ -17,7 +34,7 @@ const TABS = [
 
 export default function DetailDrawer() {
   const {
-    drawer, closeDrawer, setDrawerTab, openModal, toast, lodgeOutcome, updateStatus, currentUser,
+    drawer, closeDrawer, setDrawerTab, openModal, toast, lodgeOutcome, updateStatus, currentUser, deleteAsset, addComment,
   } = useApp();
   const a = drawer.asset;
 
@@ -33,16 +50,30 @@ export default function DetailDrawer() {
 
   const idx = idIndex(a.id);
   const isMedia = (a.t === "image" || a.t === "video") && a.url;
+  // download/share only for approved assets (reviewers can always fetch to review)
+  const isApprover = ["Super Admin", "Brand Manager", "Reviewer"].includes(currentUser?.role);
+  const canUse = a.st === "approved" || isApprover;
+
+  const doDelete = async () => {
+    const ok = await confirmDialog({
+      title: "Delete asset",
+      message: `Delete “${a.n}”? This removes the file from S3 and can’t be undone.`,
+      confirmLabel: "Delete", danger: true,
+    });
+    if (!ok) return;
+    try { await deleteAsset(a.id); closeDrawer(); toast("Asset deleted"); }
+    catch (err) { toast(err.message || "Could not delete"); }
+  };
 
   return (
     <>
       <div className={"drawer-scrim" + (drawer.open ? " open" : "")} onClick={closeDrawer}></div>
       <aside className={"drawer" + (drawer.open ? " open" : "")}>
         <div className="drawer-head">
-          <button className="iconbtn" onClick={closeDrawer}>←</button>
+          <button className="iconbtn" onClick={closeDrawer}><ArrowBackIcon sx={{ fontSize: 20 }} /></button>
           <h2>{a.n}</h2>
-          <button className="iconbtn" title="Favorite">☆</button>
-          <button className="iconbtn" title="More">⋯</button>
+          <button className="iconbtn" title="Edit" onClick={() => openModal("editAsset")}><EditOutlinedIcon sx={{ fontSize: 18 }} /></button>
+          <button className="iconbtn" title="Delete" onClick={doDelete} style={{ color: "var(--danger)" }}><DeleteOutlineIcon sx={{ fontSize: 19 }} /></button>
         </div>
         <div className="drawer-body">
           <div className="preview-pane">
@@ -52,16 +83,21 @@ export default function DetailDrawer() {
                 : a.t === "video" && a.url
                   ? <video className="hero-img" src={a.url} controls />
                   : <Art index={idx} label={TYPES[a.t]} />}
-              {a.t === "video" && !a.url && <div className="play" style={{ width: 60, height: 60 }}>▶</div>}
+              {a.t === "video" && !a.url && <div className="play" style={{ width: 60, height: 60 }}><PlayArrowRoundedIcon sx={{ fontSize: 34, color: "#12131a" }} /></div>}
             </div>
             <div className="preview-actions">
-              <button className="btn btn-primary" style={{ minWidth: 150 }} onClick={() => openModal("download")}>⬇ Download</button>
-              <button className="btn btn-ghost" onClick={async () => {
-                try { await navigator.clipboard.writeText(a.url || ""); toast("🔗 Share link copied to clipboard"); }
+              <button className="btn btn-primary" style={{ minWidth: 150 }} disabled={!canUse} title={canUse ? "" : "Only approved assets can be downloaded"} onClick={() => openModal("download")}><FileDownloadOutlinedIcon sx={{ fontSize: 17 }} /> Download</button>
+              <button className="btn btn-ghost" disabled={!canUse} title={canUse ? "" : "Only approved assets can be shared"} onClick={async () => {
+                try { await navigator.clipboard.writeText(a.url || ""); toast("Share link copied to clipboard"); }
                 catch { toast("Could not copy link"); }
-              }}>🔗 Share</button>
-              <button className="btn btn-ghost" onClick={() => openModal("editAsset")}>✏ Edit</button>
+              }}><LinkOutlinedIcon sx={{ fontSize: 17 }} /> Share</button>
+              <button className="btn btn-ghost" onClick={() => openModal("editAsset")}><EditOutlinedIcon sx={{ fontSize: 16 }} /> Edit</button>
             </div>
+            {!canUse && (
+              <div className="ssub" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -6 }}>
+                <LockOutlinedIcon sx={{ fontSize: 14 }} /> Download &amp; share unlock once this asset is <b>approved</b>.
+              </div>
+            )}
             <div>
               <div className="section-t">Rendition presets</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -89,7 +125,7 @@ export default function DetailDrawer() {
             )}
             {drawer.tab === "versions" && <VersionsTab toast={toast} />}
             {drawer.tab === "approval" && <ApprovalTab a={a} updateStatus={updateStatus} toast={toast} currentUser={currentUser} />}
-            {drawer.tab === "comments" && <CommentsTab toast={toast} />}
+            {drawer.tab === "comments" && <CommentsTab a={a} addComment={addComment} toast={toast} />}
           </div>
         </div>
       </aside>
@@ -100,8 +136,8 @@ export default function DetailDrawer() {
 function DetailsTab({ a }) {
   const kv = [
     ["Type", TYPES[a.t]], ["Dimensions", a.dim], ["File size", a.size],
-    ["Status", statusLabel(a.st)], ["Date", fmtDate(a.date)], ["Calendar year", "📅 " + a.year],
-    ["Uploaded by", a.by], ["Owner / org", a.org === "Internal" ? "🏠 Internal" : "🏢 " + a.org],
+    ["Status", statusLabel(a.st)], ["Date", fmtDate(a.date)], ["Calendar year", a.year],
+    ["Uploaded by", a.by], ["Owner / org", a.org === "Internal" ? "Internal" : a.org],
     ["Downloads", a.dl.toLocaleString()], ["Rights", "Cleared · exp. Dec 2026"],
   ];
   return (
@@ -114,7 +150,7 @@ function DetailsTab({ a }) {
       <div className="section-t">AI-generated tags</div>
       <div className="card-tags">{a.tags.map((t) => <span className="tag" key={t}>{t}</span>)}</div>
       <div className="ai-suggest" style={{ marginTop: 16 }}>
-        <b>✨ Trust Prism AI</b>
+        <b><AutoAwesomeOutlinedIcon sx={{ fontSize: 14 }} /> Trust Prism AI</b>
         Auto-tagged, color-analyzed and transcribed on upload. Content is brand-safe and rights-cleared.
       </div>
     </>
@@ -154,7 +190,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
     lodgeOutcome(a.id, rec);
     setForm(blank);
     setShowLodge(false);
-    toast(`Outcome lodged for ${rec.channel} ✓`);
+    toast(`Outcome lodged for ${rec.channel}`);
   };
 
   const syncChannel = () => {
@@ -166,7 +202,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
     ];
     const p = preset[(a.outcomes || []).length % preset.length];
     lodgeOutcome(a.id, { ...p, date: "2026-07-22", auto: true });
-    toast(`⚡ Synced latest metrics from ${p.channel} ✓`);
+    toast(`Synced latest metrics from ${p.channel}`);
   };
 
   const numFields = [
@@ -179,8 +215,8 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div className="section-t" style={{ margin: 0 }}>Campaign outcomes</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={syncChannel} title="Simulate auto-pulling metrics from a connected ad/analytics platform">🔄 Sync channel</button>
-          <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => setShowLodge((v) => !v)}>＋ Lodge outcome</button>
+          <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={syncChannel} title="Simulate auto-pulling metrics from a connected ad/analytics platform"><SyncOutlinedIcon sx={{ fontSize: 15 }} /> Sync channel</button>
+          <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => setShowLodge((v) => !v)}><AddIcon sx={{ fontSize: 16 }} /> Lodge outcome</button>
         </div>
       </div>
 
@@ -214,7 +250,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
             ))}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={doLodge}>✓ Save outcome</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={doLodge}><CheckIcon sx={{ fontSize: 16 }} /> Save outcome</button>
             <button className="btn btn-ghost" onClick={() => setShowLodge(false)}>Cancel</button>
           </div>
         </div>
@@ -242,7 +278,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
           return (
             <div className="perf-row" key={i}>
               <div className="ch"><span className="cdot" style={{ background: m.c }}>{m.i}</span>{o.channel}
-                {o.auto && <span className="auto-badge" title="Auto-synced from connected platform">⚡</span>}
+                {o.auto && <span className="auto-badge" title="Auto-synced from connected platform"><BoltIcon sx={{ fontSize: 10 }} /></span>}
               </div>
               <div>{fmtDate(o.date)}</div><div>{nf(o.views || o.impressions)}</div>
               <div>{nf(o.clicks)}</div><div>{nf(o.conversions)}</div><div>{money(o.revenue)}</div>
@@ -269,7 +305,7 @@ function VersionsTab({ toast }) {
           <div><div style={{ fontWeight: 600 }}>{v.t}</div><div className="vmeta">{v.m}</div></div>
         </div>
       ))}
-      <button className="btn btn-ghost" style={{ marginTop: 14, width: "100%" }} onClick={() => toast("Upload new version")}>⬆ Upload new version</button>
+      <button className="btn btn-ghost" style={{ marginTop: 14, width: "100%" }} onClick={() => toast("Upload new version")}><FileUploadOutlinedIcon sx={{ fontSize: 16 }} /> Upload new version</button>
     </>
   );
 }
@@ -307,7 +343,7 @@ function ApprovalTab({ a, updateStatus, toast, currentUser }) {
           const st = i === 3 ? (a.st === "approved" ? "done" : "wait") : stepFor(i);
           return (
             <div className="step" key={s.name}>
-              <div className={"sdot " + st}>{st === "done" ? "✓" : i + 1}</div>
+              <div className={"sdot " + st}>{st === "done" ? <CheckIcon sx={{ fontSize: 16 }} /> : i + 1}</div>
               <div className="stext"><div className="sname">{s.name}</div><div className="ssub">{s.sub}</div></div>
             </div>
           );
@@ -315,42 +351,68 @@ function ApprovalTab({ a, updateStatus, toast, currentUser }) {
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
         {a.st !== "approved" && canApprove && (
-          <button className="btn btn-primary" style={{ flex: 1, minWidth: 140 }} disabled={busy} onClick={() => setStatus("approved", "Approved ✓")}>✓ Approve</button>
+          <button className="btn btn-primary" style={{ flex: 1, minWidth: 140 }} disabled={busy} onClick={() => setStatus("approved", "Approved")}><CheckCircleOutlineIcon sx={{ fontSize: 17 }} /> Approve</button>
         )}
         {a.st === "draft" && (
-          <button className="btn btn-ghost" disabled={busy} onClick={() => setStatus("review", "Submitted for review")}>➤ Submit for review</button>
+          <button className="btn btn-ghost" disabled={busy} onClick={() => setStatus("review", "Submitted for review")}><SendOutlinedIcon sx={{ fontSize: 15 }} /> Submit for review</button>
         )}
         {a.st !== "draft" && (
-          <button className="btn btn-ghost" disabled={busy} onClick={() => setStatus("review", "Sent back for changes")}>↩ Request changes</button>
+          <button className="btn btn-ghost" disabled={busy} onClick={() => setStatus("review", "Sent back for changes")}><ReplayOutlinedIcon sx={{ fontSize: 16 }} /> Request changes</button>
         )}
         {a.st === "approved" && !canApprove && (
           <div className="ssub" style={{ padding: "8px 0" }}>This asset is approved and live.</div>
         )}
       </div>
       {!canApprove && a.st !== "approved" && (
-        <div className="ai-suggest" style={{ marginTop: 14 }}><b>🔒 Approval permission</b>Only Reviewers, Brand Managers or a Super Admin can approve. Your role is <b>{currentUser?.role || "—"}</b>.</div>
+        <div className="ai-suggest" style={{ marginTop: 14 }}><b><LockOutlinedIcon sx={{ fontSize: 13 }} /> Approval permission</b>Only Reviewers, Brand Managers or a Super Admin can approve. Your role is <b>{currentUser?.role || "—"}</b>.</div>
       )}
     </>
   );
 }
 
-function CommentsTab({ toast }) {
+function CommentsTab({ a, addComment, toast }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const when = (d) => {
+    const dt = new Date(d);
+    return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " +
+      dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  };
+  // merge comments + download activity into one feed, newest first
+  const feed = [
+    ...(a.comments || []).map((c) => ({ kind: "comment", by: c.by, text: c.text, date: c.date })),
+    ...(a.recentDownloads || []).map((d) => ({ kind: "download", by: d.by, reason: d.reason, date: d.date })),
+  ].sort((x, y) => new Date(y.date) - new Date(x.date));
+
+  const post = async () => {
+    const t = text.trim();
+    if (!t) return;
+    setBusy(true);
+    try { await addComment(a.id, t); setText(""); }
+    catch (err) { toast(err.message || "Could not post comment"); }
+    finally { setBusy(false); }
+  };
+
   return (
     <>
-      <div className="section-t">Comments</div>
-      <div className="comment">
-        <div className="av" style={{ background: "#ef4444" }}>ML</div>
-        <div className="cbody"><span className="cname">Marcus L.</span><span className="ctime">2d</span>
-          <div>Can we confirm the discount claim is cleared for the EU region? Otherwise good to go.</div></div>
-      </div>
-      <div className="comment">
-        <div className="av" style={{ background: "#4f46e5" }}>PS</div>
-        <div className="cbody"><span className="cname">Priya S.</span><span className="ctime">1d</span>
-          <div>Confirmed with legal — EU disclaimer added in v3. 👍</div></div>
-      </div>
+      <div className="section-t">Activity &amp; comments</div>
+      {feed.length === 0 && <div className="ssub" style={{ padding: "4px 0 10px" }}>No activity yet — be the first to comment.</div>}
+      {feed.map((it, i) => it.kind === "comment" ? (
+        <div className="comment" key={i}>
+          <div className="av" style={{ background: avColor(it.by || "?") }}>{initials(it.by || "?")}</div>
+          <div className="cbody"><span className="cname">{it.by}</span><span className="ctime">{when(it.date)}</span>
+            <div>{it.text}</div></div>
+        </div>
+      ) : (
+        <div className="activity-row" key={i}>
+          <FileDownloadOutlinedIcon sx={{ fontSize: 15 }} />
+          <span><b>{it.by}</b> downloaded{it.reason ? ` — ${it.reason}` : ""}</span>
+          <span className="ctime">{when(it.date)}</span>
+        </div>
+      ))}
       <div className="commentbox">
-        <input placeholder="Add a comment…" />
-        <button className="btn btn-primary" onClick={() => toast("Comment posted")}>Send</button>
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") post(); }} placeholder="Add a comment…" />
+        <button className="btn btn-primary" onClick={post} disabled={busy}>{busy ? "…" : "Send"}</button>
       </div>
     </>
   );

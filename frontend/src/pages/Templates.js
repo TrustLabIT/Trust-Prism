@@ -1,4 +1,5 @@
 import { useState } from "react";
+import AddIcon from "@mui/icons-material/Add";
 import { useApp } from "../context/AppContext";
 import Art from "../components/Art";
 import { grad } from "../utils/helpers";
@@ -16,7 +17,7 @@ export default function Templates() {
           <div className="crumbs">Create / <b>Templates</b></div>
           <h1>Templates</h1><p>On-brand, editable starting points. Locked to brand colors and fonts.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => openModal("editor")}>＋ Create Template</button>
+        <button className="btn btn-primary" onClick={() => openModal("editor")}><AddIcon sx={{ fontSize: 16 }} /> Create Template</button>
       </div>
 
       <div className="filters">

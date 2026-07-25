@@ -27,7 +27,7 @@ export default function Sidebar({ mobileOpen }) {
   return (
     <aside className={"sidebar" + (mobileOpen ? " open" : "")}>
       <div className="logo">
-        <div className="mark">TP</div>
+        <img className="logo-mark-img" src={`${process.env.PUBLIC_URL}/favicon.png`} alt="TrustLab" />
         <div>
           <div className="name">Trust Prism</div>
           <div className="tag">Marketing Content</div>

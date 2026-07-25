@@ -9,6 +9,8 @@ router.use(protect, requireSuperAdmin);
 router.get("/", ctrl.list);
 router.post("/", ctrl.create);
 router.patch("/:id/scope", ctrl.toggleScope);
+router.patch("/:id/password", ctrl.setPassword);
+router.patch("/:id", ctrl.update);
 router.delete("/:id", ctrl.remove);
 
 module.exports = router;

@@ -10,7 +10,7 @@ import {
   fetchCollections as fetchCollectionsThunk, addCollection as addCollectionThunk,
 } from "../store/collectionsSlice";
 import {
-  fetchShares as fetchSharesThunk, addShare as addShareThunk,
+  fetchShares as fetchSharesThunk, addShare as addShareThunk, removeShare as removeShareThunk,
 } from "../store/sharesSlice";
 import {
   fetchTemplates as fetchTemplatesThunk, addTemplate as addTemplateThunk,
@@ -22,13 +22,15 @@ import {
 import {
   fetchUsers as fetchUsersThunk, addUser as addUserThunk,
   toggleScope as toggleScopeThunk, removeUser as removeUserThunk,
+  setPassword as setPasswordThunk, updateUser as updateUserThunk,
 } from "../store/usersSlice";
 import {
   fetchAssets as fetchAssetsThunk, fetchAssetStats as fetchAssetStatsThunk,
   fetchApprovals as fetchApprovalsThunk, fetchAnalytics as fetchAnalyticsThunk,
   uploadImage, confirmUpload as confirmUploadThunk,
   lodgeOutcome as lodgeThunk, updateStatus as updateStatusThunk,
-  updateAsset as updateAssetThunk, downloadAsset, deleteAsset,
+  updateAsset as updateAssetThunk, addComment as addCommentThunk,
+  downloadAsset as downloadAssetThunk, deleteAsset,
 } from "../store/assetsSlice";
 import { login as loginThunk, logout as logoutAction } from "../store/authSlice";
 
@@ -41,6 +43,7 @@ export function useApp() {
   const assetsStatus = useSelector((s) => s.assets.status);
   const hasMore = useSelector((s) => s.assets.hasMore);
   const assetPage = useSelector((s) => s.assets.page);
+  const assetsKey = useSelector((s) => s.assets.lastKey);
   const assetStats = useSelector((s) => s.assets.stats);
   const approvals = useSelector((s) => s.assets.approvals);
   const analytics = useSelector((s) => s.assets.analytics);
@@ -67,7 +70,7 @@ export function useApp() {
 
   return {
     // data
-    assets, assetsStatus, hasMore, assetPage, assetStats, approvals, analytics,
+    assets, assetsStatus, hasMore, assetPage, assetsKey, assetStats, approvals, analytics,
     collections, users, shares, templates, agencies,
     // access
     currentUser, isSuperAdmin, canSeeAll, canSee,
@@ -91,7 +94,8 @@ export function useApp() {
     confirmUpload: (payload) => dispatch(confirmUploadThunk(payload)).unwrap(),
     updateStatus: (id, status) => dispatch(updateStatusThunk({ id, status })).unwrap(),
     updateAsset: (id, patch) => dispatch(updateAssetThunk({ id, patch })).unwrap(),
-    downloadAsset: (id) => dispatch(downloadAsset(id)).unwrap(),
+    addComment: (id, text) => dispatch(addCommentThunk({ id, text })).unwrap(),
+    downloadAsset: (id, reason) => dispatch(downloadAssetThunk({ id, reason })).unwrap(),
     deleteAsset: (id) => dispatch(deleteAsset(id)).unwrap(),
     fetchAssets: (params) => dispatch(fetchAssetsThunk(params)),
     fetchAssetStats: () => dispatch(fetchAssetStatsThunk()),
@@ -103,11 +107,14 @@ export function useApp() {
     // users (API-backed)
     fetchUsers: () => dispatch(fetchUsersThunk()),
     addUser: (payload) => dispatch(addUserThunk(payload)).unwrap(),
+    updateUser: (id, patch) => dispatch(updateUserThunk({ id, patch })).unwrap(),
+    setUserPassword: (id, password) => dispatch(setPasswordThunk({ id, password })).unwrap(),
     toggleScope: (id) => dispatch(toggleScopeThunk(id)).unwrap(),
     removeUser: (id) => dispatch(removeUserThunk(id)).unwrap(),
     // shares (API-backed)
     fetchShares: () => dispatch(fetchSharesThunk()),
     addShare: (payload) => dispatch(addShareThunk(payload)).unwrap(),
+    removeShare: (id) => dispatch(removeShareThunk(id)).unwrap(),
     // templates (API-backed)
     fetchTemplates: () => dispatch(fetchTemplatesThunk()),
     addTemplate: (payload) => dispatch(addTemplateThunk(payload)).unwrap(),

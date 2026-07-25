@@ -57,9 +57,14 @@ export const updateAsset = createAsyncThunk("assets/update", async ({ id, patch 
   return asset;
 });
 
-export const downloadAsset = createAsyncThunk("assets/download", async (id) => {
-  const { url } = await api.get(`/assets/${id}/url`);
-  return url;
+export const addComment = createAsyncThunk("assets/comment", async ({ id, text }) => {
+  const { asset } = await api.post(`/assets/${id}/comments`, { text });
+  return asset;
+});
+
+export const downloadAsset = createAsyncThunk("assets/download", async ({ id, reason }) => {
+  const { url, asset } = await api.get(`/assets/${id}/url?reason=${encodeURIComponent(reason || "")}`);
+  return { url, asset };
 });
 
 export const deleteAsset = createAsyncThunk("assets/delete", async (id, thunkAPI) => {
@@ -73,10 +78,15 @@ const replaceIn = (list, asset) => {
   if (i !== -1) list[i] = asset;
 };
 
+// A stable key for a library query — used to skip refetching the same view
+export const keyOf = (p = {}) =>
+  [p.cat || "all", p.sub || "all", p.year || "all", p.search || "", p.collection || ""].join("|");
+
 const assetsSlice = createSlice({
   name: "assets",
   initialState: {
     items: [], total: 0, page: 1, hasMore: false, status: "idle", error: null,
+    lastKey: null,
     stats: { total: 0, pending: 0 },
     approvals: [],
     analytics: { total: 0, top: [] },
@@ -88,6 +98,7 @@ const assetsSlice = createSlice({
       s.status = "idle";
       s.items = a.payload.append ? s.items.concat(a.payload.assets) : a.payload.assets;
       s.total = a.payload.total; s.page = a.payload.page; s.hasMore = a.payload.hasMore;
+      if (!a.payload.append) s.lastKey = keyOf(a.meta.arg);
     });
     b.addCase(fetchAssets.rejected, (s, a) => { s.status = "failed"; s.error = a.error.message; });
     b.addCase(fetchAssetStats.fulfilled, (s, a) => { s.stats = a.payload; });
@@ -98,6 +109,8 @@ const assetsSlice = createSlice({
     b.addCase(lodgeOutcome.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(updateStatus.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
     b.addCase(updateAsset.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
+    b.addCase(downloadAsset.fulfilled, (s, a) => { if (a.payload.asset) replaceIn(s.items, a.payload.asset); });
+    b.addCase(addComment.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(deleteAsset.fulfilled, (s, a) => { s.items = s.items.filter((x) => x.id !== a.payload); s.total = Math.max(0, s.total - 1); });
   },
 });

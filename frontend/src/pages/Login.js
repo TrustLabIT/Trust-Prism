@@ -39,9 +39,8 @@ export default function Login() {
         {/* Left brand panel */}
         <div className="sp-login-left">
           <div className="sp-left-content">
-            <div className="sp-company-logo">TP</div>
-            <div className="sp-brand-name">TRUSTLAB DIAGNOSTICS</div>
-            <div className="sp-brand-sub">Private Limited</div>
+            <div className="sp-company-logo"><img src={`${process.env.PUBLIC_URL}/favicon.png`} alt="TrustLab" /></div>
+            <div className="sp-brand-sub" style={{ marginTop: 4 }}>Private Limited</div>
             <div className="sp-app-title">Trust <span>Prism</span></div>
             <p className="sp-app-desc">
               Your marketing content platform. Store, approve, share and measure every creative asset in one place.
@@ -81,10 +80,6 @@ export default function Login() {
             <div className="sp-btn-row">
               <button type="submit" className={"sp-btn-signin" + (loading ? " loading" : "")}>{loading ? "Signing In" : "Sign In"}</button>
               <button type="button" className="sp-btn-clear" onClick={clear}>Clear</button>
-            </div>
-
-            <div className="sp-forgot-link">
-              <a href="/forgot" onClick={(e) => e.preventDefault()}>Forgot Password?</a>
             </div>
           </form>
 

@@ -1,16 +1,29 @@
 const Collection = require("../models/Collection");
+const Asset = require("../models/Asset");
 const { asyncHandler } = require("../middleware/error");
-const { parsePage, paginate } = require("../utils/paginate");
+const { parsePage } = require("../utils/paginate");
 
 function accessFilter(user) {
   return user.scope === "all" ? {} : { org: user.org };
 }
 
-// GET /api/collections?page=&limit=
+// GET /api/collections?page=&limit=  (with live asset counts)
 const list = asyncHandler(async (req, res) => {
   const { page, limit } = parsePage(req.query);
-  const r = await paginate(Collection, accessFilter(req.user), { page, limit });
-  res.json({ collections: r.items, total: r.total, page: r.page, limit: r.limit, hasMore: r.hasMore });
+  const filter = accessFilter(req.user);
+  const [cols, total] = await Promise.all([
+    Collection.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+    Collection.countDocuments(filter),
+  ]);
+  // count assets per collection (respecting the same access scope)
+  const agg = await Asset.aggregate([
+    { $match: { ...filter, collectionRef: { $ne: null } } },
+    { $group: { _id: "$collectionRef", n: { $sum: 1 } } },
+  ]);
+  const countMap = {};
+  agg.forEach((x) => { if (x._id) countMap[String(x._id)] = x.n; });
+  const items = cols.map((c) => ({ ...c.toCard(), c: countMap[String(c._id)] || 0 }));
+  res.json({ collections: items, total, page, limit, hasMore: (page - 1) * limit + cols.length < total });
 });
 
 // POST /api/collections

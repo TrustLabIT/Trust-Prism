@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import { useApp } from "../context/AppContext";
+import { confirmDialog } from "../components/Dialogs";
 
 export default function BrandKit() {
   const { brandKit, brandCanEdit, updateBrandKit, uploadLogo, removeLogo, toast } = useApp();
@@ -23,12 +29,12 @@ export default function BrandKit() {
 
   const saveColors = async () => {
     setSavingC(true);
-    try { await updateBrandKit({ colors }); toast("Color palette saved ✓"); }
+    try { await updateBrandKit({ colors }); toast("Color palette saved"); }
     catch (e) { toast(e.message); } finally { setSavingC(false); }
   };
   const saveFonts = async () => {
     setSavingF(true);
-    try { await updateBrandKit({ fonts }); toast("Typography saved ✓"); }
+    try { await updateBrandKit({ fonts }); toast("Typography saved"); }
     catch (e) { toast(e.message); } finally { setSavingF(false); }
   };
   const pickLogo = async (e) => {
@@ -39,11 +45,13 @@ export default function BrandKit() {
     form.append("label", f.name);
     form.append("dark", String(logoDark));
     setUploading(true);
-    try { await uploadLogo(form); toast("Logo uploaded ✓"); }
+    try { await uploadLogo(form); toast("Logo uploaded"); }
     catch (err) { toast(err.message || "Upload failed"); }
     finally { setUploading(false); e.target.value = ""; }
   };
   const delLogo = async (key) => {
+    const ok = await confirmDialog({ title: "Remove logo", message: "Remove this logo from the Brand Kit? It will be deleted from S3.", confirmLabel: "Remove", danger: true });
+    if (!ok) return;
     try { await removeLogo(key); toast("Logo removed"); }
     catch (e) { toast(e.message); }
   };
@@ -55,12 +63,12 @@ export default function BrandKit() {
           <div className="crumbs">Create / <b>Brand Kit</b></div>
           <h1>Brand Kit</h1><p>The single source of truth for how the brand looks and sounds.</p>
         </div>
-        <button className="btn btn-ghost" onClick={() => toast("Brand guidelines shared")}>🔗 Share Guidelines</button>
+        <button className="btn btn-ghost" onClick={() => toast("Brand guidelines shared")}><LinkOutlinedIcon sx={{ fontSize: 16 }} /> Share Guidelines</button>
       </div>
 
       {!brandCanEdit && (
         <div className="callout-card" style={{ marginBottom: 18 }}>
-          <b>🔒 View only</b>
+          <b><LockOutlinedIcon sx={{ fontSize: 14, verticalAlign: "-2px" }} /> View only</b>
           <p>Only a <b>Brand Manager</b> or <b>Super Admin</b> can edit the Brand Kit. You can view the current brand assets below.</p>
         </div>
       )}
@@ -71,7 +79,7 @@ export default function BrandKit() {
           <div><h3>Color Palette</h3><div className="desc">Primary and secondary brand colors with usage rules.</div></div>
           {brandCanEdit && (
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-ghost" onClick={addColor}>＋ Add color</button>
+              <button className="btn btn-ghost" onClick={addColor}><AddIcon sx={{ fontSize: 16 }} /> Add color</button>
               <button className="btn btn-primary" onClick={saveColors} disabled={savingC}>{savingC ? "Saving…" : "Save colors"}</button>
             </div>
           )}
@@ -87,7 +95,7 @@ export default function BrandKit() {
                   <input value={c.name} onChange={(e) => setColor(i, { name: e.target.value })} style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 6px", fontSize: 12, fontWeight: 700, marginTop: 7 }} />
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
                     <span className="sh">{c.hex}</span>
-                    <button onClick={() => delColor(i)} title="Remove" style={{ color: "var(--danger)", fontSize: 12, fontWeight: 700 }}>✕</button>
+                    <button onClick={() => delColor(i)} title="Remove" style={{ color: "var(--danger)", display: "grid", placeItems: "center" }}><CloseIcon sx={{ fontSize: 14 }} /></button>
                   </div>
                 </>
               ) : (
@@ -134,7 +142,7 @@ export default function BrandKit() {
                 <input type="checkbox" checked={logoDark} onChange={(e) => setLogoDark(e.target.checked)} /> for dark background
               </label>
               <input ref={fileRef} type="file" hidden accept="image/*" onChange={pickLogo} />
-              <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "⬆ Upload logo"}</button>
+              <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : <><FileUploadOutlinedIcon sx={{ fontSize: 16 }} /> Upload logo</>}</button>
             </div>
           )}
         </div>
@@ -144,7 +152,7 @@ export default function BrandKit() {
               {l.url ? <img src={l.url} alt={l.label} style={{ maxWidth: "80%", maxHeight: "70%", objectFit: "contain" }} /> : <span className="sh">{l.label}</span>}
               {brandCanEdit && (
                 <button onClick={() => delLogo(l.key)} title="Remove logo"
-                  style={{ position: "absolute", top: 6, right: 6, background: "rgba(255,255,255,.9)", borderRadius: 6, width: 22, height: 22, color: "var(--danger)", fontWeight: 700 }}>✕</button>
+                  style={{ position: "absolute", top: 6, right: 6, background: "rgba(255,255,255,.9)", borderRadius: 6, width: 22, height: 22, color: "var(--danger)", display: "grid", placeItems: "center" }}><CloseIcon sx={{ fontSize: 14 }} /></button>
               )}
             </div>
           ))}

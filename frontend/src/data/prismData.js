@@ -11,9 +11,9 @@ export const TYPES = {
 };
 
 export const catLabel = {
-  Videos: "🎬 Videos",
-  Electronic: "💻 Electronic media",
-  Print: "🖨️ Print media",
+  Videos: "Videos",
+  Electronic: "Electronic media",
+  Print: "Print media",
 };
 
 // Sub-classifications available under each top category

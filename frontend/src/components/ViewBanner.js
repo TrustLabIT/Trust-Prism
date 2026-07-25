@@ -1,3 +1,4 @@
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useApp } from "../context/AppContext";
 
 export default function ViewBanner() {
@@ -6,7 +7,7 @@ export default function ViewBanner() {
   const n = assetStats.total;
   return (
     <div className="viewbanner">
-      👁 Signed in as <b>{currentUser.name}</b> ({currentUser.org}) — you can see only <b>{currentUser.org}</b>'s work:{" "}
+      <VisibilityOutlinedIcon sx={{ fontSize: 15 }} /> Signed in as <b>{currentUser.name}</b> ({currentUser.org}) — you can see only <b>{currentUser.org}</b>'s work:{" "}
       {n} asset{n !== 1 ? "s" : ""} visible.
     </div>
   );

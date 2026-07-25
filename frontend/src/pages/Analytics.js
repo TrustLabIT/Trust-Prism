@@ -1,6 +1,17 @@
 import { useEffect } from "react";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import SellOutlinedIcon from "@mui/icons-material/SellOutlined";
+import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import { useApp } from "../context/AppContext";
 import { grad, nf } from "../utils/helpers";
+
+const li = { fontSize: 15 };
 
 const chartData = [
   ["Brand Guidelines 2026", 1567], ["Retargeting Banner", 988], ["Hero — Summer Shot", 842],
@@ -27,7 +38,7 @@ export default function Analytics() {
           <h1>Analytics</h1><p>What's being used, by whom, and where the gaps are.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>📅 Range</label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><CalendarMonthOutlinedIcon sx={li} /> Range</label>
           <select className="yearsel" onChange={(e) => toast("Analytics range: " + e.target.value)}>
             <option>Last 30 days</option><option>This year (2026)</option><option>2025</option><option>2024</option>
             <option>Custom range…</option><option>All time</option>
@@ -36,14 +47,14 @@ export default function Analytics() {
       </div>
 
       <div className="stats">
-        <div className="stat"><div className="lab">📦 Total assets</div><div className="val">{(analytics.total || 0).toLocaleString()}</div><div className="delta up">live count</div></div>
-        <div className="stat"><div className="lab">⬇ Downloads (30d)</div><div className="val">9,732</div><div className="delta up">▲ 12.4% vs last month</div></div>
-        <div className="stat"><div className="lab">👥 Active users</div><div className="val">146</div><div className="delta up">▲ 9 new</div></div>
-        <div className="stat"><div className="lab">⏱ Avg. approval time</div><div className="val">1.8d</div><div className="delta up">▼ 0.6d faster</div></div>
+        <div className="stat"><div className="lab"><Inventory2OutlinedIcon sx={li} /> Total assets</div><div className="val">{(analytics.total || 0).toLocaleString()}</div><div className="delta up">live count</div></div>
+        <div className="stat"><div className="lab"><FileDownloadOutlinedIcon sx={li} /> Downloads (30d)</div><div className="val">9,732</div><div className="delta up">▲ 12.4% vs last month</div></div>
+        <div className="stat"><div className="lab"><GroupOutlinedIcon sx={li} /> Active users</div><div className="val">146</div><div className="delta up">▲ 9 new</div></div>
+        <div className="stat"><div className="lab"><ScheduleOutlinedIcon sx={li} /> Avg. approval time</div><div className="val">1.8d</div><div className="delta up">▼ 0.6d faster</div></div>
       </div>
 
       <div className="bk-section">
-        <h3>📣 Campaign outcomes — top electronic media by views</h3>
+        <h3><CampaignOutlinedIcon sx={{ fontSize: 17, verticalAlign: "-3px" }} /> Campaign outcomes — top electronic media by views</h3>
         <div className="desc">Aggregated from outcomes lodged on each asset (views + impressions across all channels).</div>
         <div style={{ marginTop: 10 }}>
           {aggRows.length === 0
@@ -72,9 +83,9 @@ export default function Analytics() {
       </div>
 
       <div className="stats">
-        <div className="stat"><div className="lab">🕒 Stale assets (&gt;12mo unused)</div><div className="val">312</div><div className="delta down">Consider archiving</div></div>
-        <div className="stat"><div className="lab">🏷 Auto-tagged by AI</div><div className="val">96%</div><div className="delta up">Coverage</div></div>
-        <div className="stat"><div className="lab">⚠ Expiring rights (30d)</div><div className="val">14</div><div className="delta down">Licenses / model releases</div></div>
+        <div className="stat"><div className="lab"><HistoryOutlinedIcon sx={li} /> Stale assets (&gt;12mo unused)</div><div className="val">312</div><div className="delta down">Consider archiving</div></div>
+        <div className="stat"><div className="lab"><SellOutlinedIcon sx={li} /> Auto-tagged by AI</div><div className="val">96%</div><div className="delta up">Coverage</div></div>
+        <div className="stat"><div className="lab"><WarningAmberOutlinedIcon sx={li} /> Expiring rights (30d)</div><div className="val">14</div><div className="delta down">Licenses / model releases</div></div>
       </div>
     </section>
   );

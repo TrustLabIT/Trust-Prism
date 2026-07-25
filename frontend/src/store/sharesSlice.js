@@ -11,6 +11,11 @@ export const addShare = createAsyncThunk("shares/add", async (payload) => {
   return share;
 });
 
+export const removeShare = createAsyncThunk("shares/remove", async (id) => {
+  await api.del(`/shares/${id}`);
+  return id;
+});
+
 const sharesSlice = createSlice({
   name: "shares",
   initialState: { items: [], status: "idle", error: null },
@@ -20,6 +25,7 @@ const sharesSlice = createSlice({
     b.addCase(fetchShares.fulfilled, (s, a) => { s.status = "idle"; s.items = a.payload; });
     b.addCase(fetchShares.rejected, (s, a) => { s.status = "failed"; s.error = a.error.message; });
     b.addCase(addShare.fulfilled, (s, a) => { s.items.unshift(a.payload); });
+    b.addCase(removeShare.fulfilled, (s, a) => { s.items = s.items.filter((x) => x.id !== a.payload); });
   },
 });
 

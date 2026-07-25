@@ -1,16 +1,17 @@
 import { useNavigate } from "react-router-dom";
+import AddIcon from "@mui/icons-material/Add";
 import { useApp } from "../context/AppContext";
 import Art from "../components/Art";
 import { grad } from "../utils/helpers";
 
 export default function Collections() {
-  const { collections, canSee, openModal, toast } = useApp();
+  const { collections, canSee, openModal } = useApp();
   const navigate = useNavigate();
 
   const vis = collections.filter((c) => canSee(c.org));
   const years = [...new Set(vis.map((c) => c.y))].sort((x, y) => y - x);
 
-  const open = (c) => { navigate("/library"); toast(`Opened "${c.n}" · ${c.y}`); };
+  const open = (c) => { navigate(`/collections/${c.id}`); };
 
   const Card = (c) => {
     const i = collections.indexOf(c);
@@ -29,7 +30,7 @@ export default function Collections() {
           <div className="crumbs">Workspace / <b>Collections</b></div>
           <h1>Collections</h1><p>Curated groups for campaigns, regions and teams.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => openModal("collection")}>＋ New Collection</button>
+        <button className="btn btn-primary" onClick={() => openModal("collection")}><AddIcon sx={{ fontSize: 16 }} /> New Collection</button>
       </div>
 
       {vis.length === 0 && <div className="empty">No collections in your workspace yet.</div>}
