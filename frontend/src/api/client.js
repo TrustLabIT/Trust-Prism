@@ -1,4 +1,6 @@
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+import { BASE_URL } from "../constant";
+
+const API_URL = process.env.REACT_APP_API_URL || BASE_URL;
 const TOKEN_KEY = "tp_token";
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);

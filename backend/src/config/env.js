@@ -2,7 +2,9 @@ require("dotenv").config();
 
 module.exports = {
   port: process.env.PORT || 5000,
-  clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+  // one origin, or a comma-separated list → array (cors accepts either)
+  clientOrigin: (process.env.CLIENT_ORIGIN || "http://localhost:3000")
+    .split(",").map((o) => o.trim()).filter(Boolean),
   mongoUri: process.env.MONGO_URI || "",
   jwt: {
     secret: process.env.JWT_SECRET || "dev-secret-change-me",

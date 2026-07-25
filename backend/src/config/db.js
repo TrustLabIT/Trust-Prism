@@ -4,10 +4,13 @@ const { mongoUri } = require("./env");
 
 // Some networks' default DNS resolver refuses SRV lookups (querySrv ECONNREFUSED),
 // which breaks mongodb+srv://. Force public resolvers (Google + Cloudflare) first.
-try {
-  const current = dns.getServers ? dns.getServers() : [];
-  dns.setServers(["8.8.8.8", "1.1.1.1", ...current]);
-} catch (_) { /* ignore */ }
+// Only needed for SRV URIs — a local mongodb://host:port needs no DNS override.
+if (/^mongodb\+srv:/i.test(mongoUri || "")) {
+  try {
+    const current = dns.getServers ? dns.getServers() : [];
+    dns.setServers(["8.8.8.8", "1.1.1.1", ...current]);
+  } catch (_) { /* ignore */ }
+}
 
 let lastError = null;
 
