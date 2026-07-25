@@ -1,6 +1,9 @@
 import { BASE_URL } from "../constant";
 
-const API_URL = process.env.REACT_APP_API_URL || BASE_URL;
+// Use the local backend during development, the production API everywhere else.
+// Runtime hostname check → no build-time env var can override it (and cause mixed-content).
+const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const API_URL =  BASE_URL;
 const TOKEN_KEY = "tp_token";
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
