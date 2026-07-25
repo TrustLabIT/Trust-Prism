@@ -4,24 +4,75 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CloseIcon from "@mui/icons-material/Close";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CompressOutlinedIcon from "@mui/icons-material/CompressOutlined";
 import { useApp } from "../context/AppContext";
-import { confirmDialog } from "../components/Dialogs";
+import { confirmDialog, promptDialog } from "../components/Dialogs";
 
 export default function BrandKit() {
-  const { brandKit, brandCanEdit, updateBrandKit, uploadLogo, removeLogo, toast } = useApp();
+  const {
+    brandKit, brandCanEdit, updateBrandKit, uploadLogo, removeLogo, toast,
+    brandDocs, brandDocsHasMore, brandDocsTotal, brandDocsStatus, brandDocsPage,
+    fetchBrandDocs, uploadBrandDoc, renameBrandDoc, deleteBrandDoc, getBrandDocUrl,
+  } = useApp();
   const [colors, setColors] = useState([]);
   const [fonts, setFonts] = useState({ heading: "", body: "" });
   const [savingC, setSavingC] = useState(false);
   const [savingF, setSavingF] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [logoDark, setLogoDark] = useState(false);
+  const [docBusy, setDocBusy] = useState(false);
   const fileRef = useRef(null);
+  const docRef = useRef(null);
 
   // seed local edit state from the loaded kit
   useEffect(() => {
     setColors(brandKit.colors || []);
     setFonts({ heading: brandKit.fonts?.heading || "", body: brandKit.fonts?.body || "" });
   }, [brandKit]);
+
+  // load first page of brand documents once
+  useEffect(() => {
+    fetchBrandDocs({ page: 1 }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pickDoc = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const form = new FormData();
+    form.append("file", f);
+    form.append("name", f.name);
+    setDocBusy(true);
+    try {
+      const doc = await uploadBrandDoc(form);
+      toast(doc.saved ? `Uploaded · compressed ${doc.saved}% smaller` : "Document uploaded");
+    } catch (err) { toast(err.message || "Upload failed"); }
+    finally { setDocBusy(false); e.target.value = ""; }
+  };
+  const openDoc = async (id, download) => {
+    try {
+      const url = await getBrandDocUrl(id, download);
+      window.open(url, "_blank", "noopener");
+    } catch (e) { toast(e.message || "Could not open document"); }
+  };
+  const renameDoc = async (d) => {
+    const name = await promptDialog({ title: "Rename document", label: "Document name", value: d.name, confirmLabel: "Save" });
+    if (!name || name === d.name) return;
+    try { await renameBrandDoc(d.id, name); toast("Document renamed"); }
+    catch (e) { toast(e.message || "Could not rename"); }
+  };
+  const delDoc = async (d) => {
+    const ok = await confirmDialog({ title: "Delete document", message: `Delete “${d.name}”? This removes the file from S3 and can’t be undone.`, confirmLabel: "Delete", danger: true });
+    if (!ok) return;
+    try { await deleteBrandDoc(d.id); toast("Document deleted"); }
+    catch (e) { toast(e.message || "Could not delete"); }
+  };
+  const loadMoreDocs = () => fetchBrandDocs({ page: brandDocsPage + 1, append: true }).catch((e) => toast(e.message));
 
   const setColor = (i, patch) => setColors((cs) => cs.map((c, x) => (x === i ? { ...c, ...patch } : c)));
   const addColor = () => setColors((cs) => [...cs, { name: "New", hex: "#4f46e5" }]);
@@ -158,6 +209,64 @@ export default function BrandKit() {
           ))}
           {(brandKit.logos || []).length === 0 && <div className="perf-empty">No logos uploaded yet.</div>}
         </div>
+      </div>
+
+      {/* Brand documents */}
+      <div className="bk-section">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <h3>Brand documents {brandDocsTotal > 0 && <span className="ed-hint">· {brandDocsTotal} file{brandDocsTotal > 1 ? "s" : ""}</span>}</h3>
+            <div className="desc">Brand guideline PDFs — logo usage, tone of voice, print specs. Stored in S3 and compressed on upload.</div>
+          </div>
+          {brandCanEdit && (
+            <>
+              <input ref={docRef} type="file" hidden accept="application/pdf,.pdf" onChange={pickDoc} />
+              <button className="btn btn-primary" onClick={() => docRef.current?.click()} disabled={docBusy}>
+                {docBusy ? "Uploading…" : <><FileUploadOutlinedIcon sx={{ fontSize: 16 }} /> Upload PDF</>}
+              </button>
+            </>
+          )}
+        </div>
+
+        {brandCanEdit && (
+          <div className="dropzone" style={{ marginTop: 14, padding: 22, opacity: docBusy ? 0.6 : 1 }} onClick={() => !docBusy && docRef.current?.click()}>
+            <div style={{ fontWeight: 700, color: "var(--ink)" }}>Click to upload a brand guideline PDF</div>
+            <div style={{ fontSize: 12, marginTop: 3 }}>Up to 50 MB · automatically compressed before storage</div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 14 }}>
+          {brandDocs.length === 0 ? (
+            <div className="perf-empty">{brandDocsStatus === "loading" ? "Loading documents…" : "No brand documents yet."}</div>
+          ) : (
+            brandDocs.map((d) => (
+              <div className="bdoc-row" key={d.id}>
+                <div className="bdoc-ico"><DescriptionOutlinedIcon sx={{ fontSize: 20 }} /></div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="bdoc-name">{d.name}</div>
+                  <div className="bdoc-meta">
+                    {d.size}{d.by ? ` · ${d.by}` : ""}{d.date ? ` · ${d.date}` : ""}
+                    {d.saved > 0 && <span className="bdoc-save"><CompressOutlinedIcon sx={{ fontSize: 12, verticalAlign: "-2px" }} /> {d.saved}% smaller</span>}
+                  </div>
+                </div>
+                <div className="bdoc-acts">
+                  <button onClick={() => openDoc(d.id, false)} title="View"><VisibilityOutlinedIcon sx={{ fontSize: 16 }} /></button>
+                  <button onClick={() => openDoc(d.id, true)} title="Download"><FileDownloadOutlinedIcon sx={{ fontSize: 16 }} /></button>
+                  {brandCanEdit && <button onClick={() => renameDoc(d)} title="Rename"><DriveFileRenameOutlineIcon sx={{ fontSize: 16 }} /></button>}
+                  {brandCanEdit && <button className="del" onClick={() => delDoc(d)} title="Delete"><DeleteOutlineIcon sx={{ fontSize: 16 }} /></button>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {brandDocsHasMore && (
+          <div style={{ textAlign: "center", marginTop: 14 }}>
+            <button className="btn btn-ghost" onClick={loadMoreDocs} disabled={brandDocsStatus === "loading"}>
+              {brandDocsStatus === "loading" ? "Loading…" : `Load more (${brandDocsTotal - brandDocs.length} more)`}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

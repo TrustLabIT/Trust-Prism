@@ -18,7 +18,10 @@ import {
 import {
   fetchBrandKit as fetchBrandKitThunk, updateBrandKit as updateBrandKitThunk,
   uploadLogo as uploadLogoThunk, removeLogo as removeLogoThunk,
+  fetchBrandDocs as fetchBrandDocsThunk, uploadBrandDoc as uploadBrandDocThunk,
+  renameBrandDoc as renameBrandDocThunk, deleteBrandDoc as deleteBrandDocThunk,
 } from "../store/brandKitSlice";
+import { api } from "../api/client";
 import {
   fetchUsers as fetchUsersThunk, addUser as addUserThunk,
   toggleScope as toggleScopeThunk, removeUser as removeUserThunk,
@@ -53,6 +56,11 @@ export function useApp() {
   const templates = useSelector((s) => s.templates.items);
   const brandKit = useSelector((s) => s.brandKit.kit);
   const brandCanEdit = useSelector((s) => s.brandKit.canEdit);
+  const brandDocs = useSelector((s) => s.brandKit.docs);
+  const brandDocsHasMore = useSelector((s) => s.brandKit.docsHasMore);
+  const brandDocsTotal = useSelector((s) => s.brandKit.docsTotal);
+  const brandDocsPage = useSelector((s) => s.brandKit.docsPage);
+  const brandDocsStatus = useSelector((s) => s.brandKit.docsStatus);
   // agencies = distinct external orgs, derived from the users list
   const agencies = [...new Set(users.filter((u) => u.type === "External").map((u) => u.org))];
   const currentUser = useSelector((s) => s.auth.user) || GUEST;
@@ -124,6 +132,13 @@ export function useApp() {
     updateBrandKit: (payload) => dispatch(updateBrandKitThunk(payload)).unwrap(),
     uploadLogo: (form) => dispatch(uploadLogoThunk(form)).unwrap(),
     removeLogo: (key) => dispatch(removeLogoThunk(key)).unwrap(),
+    // brand documents (S3 + pagination + CRUD)
+    brandDocs, brandDocsHasMore, brandDocsTotal, brandDocsPage, brandDocsStatus,
+    fetchBrandDocs: (opts) => dispatch(fetchBrandDocsThunk(opts)).unwrap(),
+    uploadBrandDoc: (form) => dispatch(uploadBrandDocThunk(form)).unwrap(),
+    renameBrandDoc: (id, name) => dispatch(renameBrandDocThunk({ id, name })).unwrap(),
+    deleteBrandDoc: (id) => dispatch(deleteBrandDocThunk(id)).unwrap(),
+    getBrandDocUrl: (id, download) => api.get(`/brandkit/docs/${id}/url${download ? "?download=1" : ""}`).then((r) => r.url),
     // auth
     authStatus, authError,
     login: (email, password) => dispatch(loginThunk({ email, password })).unwrap(),

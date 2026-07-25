@@ -396,6 +396,18 @@ video.hero-img{max-width:100%;max-height:66vh;border-radius:10px;background:#000
 svg{display:block}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
+/* ---------- Brand documents ---------- */
+.bdoc-row{display:flex;align-items:center;gap:13px;padding:11px 14px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px;background:var(--panel)}
+.bdoc-row:hover{border-color:#d7d9e0;box-shadow:var(--shadow)}
+.bdoc-ico{width:40px;height:46px;border-radius:7px;background:linear-gradient(135deg,#ef4444,#b91c1c);display:grid;place-items:center;color:#fff;flex:0 0 40px}
+.bdoc-name{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bdoc-meta{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bdoc-save{color:var(--brand);font-weight:700;background:var(--brand-soft);padding:1px 7px;border-radius:20px;display:inline-flex;align-items:center;gap:3px}
+.bdoc-acts{margin-left:auto;display:flex;gap:6px;flex:none}
+.bdoc-acts button{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;color:var(--muted);display:grid;place-items:center;transition:.12s}
+.bdoc-acts button:hover{background:#f4f5f7;color:var(--ink)}
+.bdoc-acts button.del:hover{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+
 /* ---------- Asset picker (share modal) ---------- */
 .asset-picker{border:1px solid var(--line);border-radius:10px;max-height:240px;overflow-y:auto;background:var(--panel)}
 .ap-empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px}

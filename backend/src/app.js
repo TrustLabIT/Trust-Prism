@@ -16,7 +16,17 @@ const publicRouter = require("./routes/public");
 
 const app = express();
 
-app.use(cors({ origin: clientOrigin }));
+// Allow the configured origin(s) plus any localhost/127.0.0.1 port (dev convenience).
+// A browser can't forge the Origin header, so permitting localhost is safe for a prod API.
+const allowed = new Set(Array.isArray(clientOrigin) ? clientOrigin : [clientOrigin]);
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);                       // curl / same-origin / server-to-server
+    if (allowed.has(origin)) return cb(null, true);           // explicitly configured
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true); // any localhost port
+    return cb(new Error(`Origin not allowed by CORS: ${origin}`));
+  },
+}));
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
 

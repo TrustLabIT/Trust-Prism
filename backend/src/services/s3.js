@@ -1,8 +1,12 @@
 const crypto = require("crypto");
+const zlib = require("zlib");
+const { promisify } = require("util");
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const sharp = require("sharp");
 const { aws } = require("../config/env");
+
+const gzipAsync = promisify(zlib.gzip);
 
 const s3Configured = !!(aws.region && aws.bucket && aws.accessKeyId && aws.secretAccessKey);
 
@@ -55,14 +59,23 @@ async function compressImage(buffer) {
   };
 }
 
-async function putObject(key, buffer, contentType) {
+// Gzip a buffer (max level). Used to compress documents before storing in S3.
+async function gzipBuffer(buffer) {
+  return gzipAsync(buffer, { level: 9 });
+}
+
+// opts.contentEncoding → sets S3 Content-Encoding (e.g. "gzip"); browsers/curl(--compressed)
+// transparently decompress on GET, so the stored object is smaller but downloads intact.
+async function putObject(key, buffer, contentType, opts = {}) {
   assertConfigured();
-  await client.send(new PutObjectCommand({
+  const params = {
     Bucket: aws.bucket,
     Key: key,
     Body: buffer,
     ContentType: contentType,
-  }));
+  };
+  if (opts.contentEncoding) params.ContentEncoding = opts.contentEncoding;
+  await client.send(new PutObjectCommand(params));
   return key;
 }
 
@@ -95,6 +108,7 @@ module.exports = {
   s3Configured,
   buildKey,
   compressImage,
+  gzipBuffer,
   putObject,
   deleteObject,
   presignUpload,
