@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { lodgeOutcome, updateStatus, updateAsset, downloadAsset, addComment, replaceAssetFile } from "./assetsSlice";
+import { lodgeOutcome, removeOutcome, updateStatus, updateAsset, downloadAsset, addComment, replaceAssetFile } from "./assetsSlice";
 
 const CLOSED_MODALS = {
   upload: false, collection: false, editor: false,
@@ -29,6 +29,7 @@ const uiSlice = createSlice({
     // keep the open drawer's asset fresh after a mutation
     const refresh = (s, a) => { if (s.drawer.asset && s.drawer.asset.id === a.payload.id) s.drawer.asset = a.payload; };
     b.addCase(lodgeOutcome.fulfilled, refresh);
+    b.addCase(removeOutcome.fulfilled, refresh);
     b.addCase(updateStatus.fulfilled, refresh);
     b.addCase(updateAsset.fulfilled, refresh);
     b.addCase(addComment.fulfilled, refresh);

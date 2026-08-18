@@ -33,7 +33,7 @@ const TABS = [
 
 export default function DetailDrawer() {
   const {
-    drawer, closeDrawer, setDrawerTab, openModal, toast, lodgeOutcome, updateStatus, currentUser, deleteAsset, addComment,
+    drawer, closeDrawer, setDrawerTab, openModal, toast, lodgeOutcome, removeOutcome, updateStatus, currentUser, deleteAsset, addComment,
   } = useApp();
   const a = drawer.asset;
 
@@ -116,7 +116,7 @@ export default function DetailDrawer() {
 
             {drawer.tab === "details" && <DetailsTab a={a} />}
             {drawer.tab === "performance" && (
-              <PerformanceTab a={a} lodgeOutcome={lodgeOutcome} toast={toast} />
+              <PerformanceTab a={a} lodgeOutcome={lodgeOutcome} removeOutcome={removeOutcome} toast={toast} />
             )}
             {drawer.tab === "versions" && <VersionsTab toast={toast} />}
             {drawer.tab === "approval" && <ApprovalTab a={a} updateStatus={updateStatus} toast={toast} currentUser={currentUser} />}
@@ -152,8 +152,24 @@ function DetailsTab({ a }) {
   );
 }
 
-function PerformanceTab({ a, lodgeOutcome, toast }) {
+function PerformanceTab({ a, lodgeOutcome, removeOutcome, toast }) {
   const [showLodge, setShowLodge] = useState(false);
+  const hasOutcomes = (a.outcomes || []).length > 0;
+
+  const delOne = async (i) => {
+    try { await removeOutcome(a.id, i); toast("Outcome removed"); }
+    catch (e) { toast(e.message || "Could not remove outcome"); }
+  };
+  const clearAll = async () => {
+    const ok = await confirmDialog({
+      title: "Clear all outcomes",
+      message: "Remove every lodged/synced outcome for this asset? This resets its campaign metrics to zero.",
+      confirmLabel: "Clear all", danger: true,
+    });
+    if (!ok) return;
+    try { await removeOutcome(a.id); toast("All outcomes cleared"); }
+    catch (e) { toast(e.message || "Could not clear outcomes"); }
+  };
   const blank = { loChannel: channels[0].n, loDate: "2026-07-23", loImp: "", loViews: "", loClicks: "", loEng: "", loConv: "", loSpend: "", loRev: "" };
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -210,6 +226,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div className="section-t" style={{ margin: 0 }}>Campaign outcomes</div>
         <div style={{ display: "flex", gap: 8 }}>
+          {hasOutcomes && <button className="btn btn-ghost" style={{ padding: "6px 12px", color: "var(--danger)", borderColor: "var(--danger-soft)" }} onClick={clearAll} title="Remove all lodged/synced outcomes"><DeleteOutlineIcon sx={{ fontSize: 15 }} /> Clear all</button>}
           <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={syncChannel} title="Simulate auto-pulling metrics from a connected ad/analytics platform"><SyncOutlinedIcon sx={{ fontSize: 15 }} /> Sync channel</button>
           <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => setShowLodge((v) => !v)}><AddIcon sx={{ fontSize: 16 }} /> Lodge outcome</button>
         </div>
@@ -267,7 +284,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
 
       <div className="section-t">Lodged results</div>
       <div>
-        <div className="perf-row head"><div>Channel</div><div>Period</div><div>Views</div><div>Clicks</div><div>Conv.</div><div>Revenue</div></div>
+        <div className="perf-row head"><div>Channel</div><div>Period</div><div>Views</div><div>Clicks</div><div>Conv.</div><div>Revenue</div><div></div></div>
         {(a.outcomes || []).length ? a.outcomes.map((o, i) => {
           const m = chMeta(o.channel);
           return (
@@ -277,6 +294,7 @@ function PerformanceTab({ a, lodgeOutcome, toast }) {
               </div>
               <div>{fmtDate(o.date)}</div><div>{nf(o.views || o.impressions)}</div>
               <div>{nf(o.clicks)}</div><div>{nf(o.conversions)}</div><div>{money(o.revenue)}</div>
+              <button className="perf-del" title="Remove this outcome" onClick={() => delOne(i)}><DeleteOutlineIcon sx={{ fontSize: 15 }} /></button>
             </div>
           );
         }) : <div className="perf-empty">Nothing lodged yet — click "Lodge outcome" to record views, clicks, spend and revenue, or "Sync channel" to auto-pull them.</div>}

@@ -32,6 +32,8 @@ router.post("/:id/file", replaceUpload.single("file"), ctrl.replaceFile);
 router.patch("/:id/status", ctrl.updateStatus);
 router.post("/:id/comments", ctrl.addComment);
 router.post("/:id/outcomes", ctrl.lodgeOutcome);
+router.delete("/:id/outcomes/:index", ctrl.removeOutcome);
+router.delete("/:id/outcomes", ctrl.removeOutcome);
 router.delete("/:id", ctrl.remove);
 
 module.exports = router;

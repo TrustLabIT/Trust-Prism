@@ -31,7 +31,7 @@ import {
   fetchAssets as fetchAssetsThunk, fetchAssetStats as fetchAssetStatsThunk,
   fetchApprovals as fetchApprovalsThunk, fetchAnalytics as fetchAnalyticsThunk,
   uploadImage, confirmUpload as confirmUploadThunk,
-  lodgeOutcome as lodgeThunk, updateStatus as updateStatusThunk,
+  lodgeOutcome as lodgeThunk, removeOutcome as removeOutcomeThunk, updateStatus as updateStatusThunk,
   updateAsset as updateAssetThunk, replaceAssetFile as replaceAssetFileThunk, addComment as addCommentThunk,
   downloadAsset as downloadAssetThunk, deleteAsset,
 } from "../store/assetsSlice";
@@ -98,6 +98,7 @@ export function useApp() {
     closeAllModals: () => dispatch(closeAllModals()),
     // asset mutations + loading (API-backed)
     lodgeOutcome: (id, rec) => dispatch(lodgeThunk({ id, outcome: rec })).unwrap(),
+    removeOutcome: (id, index) => dispatch(removeOutcomeThunk({ id, index })).unwrap(),
     uploadImage: (form) => dispatch(uploadImage(form)).unwrap(),
     confirmUpload: (payload) => dispatch(confirmUploadThunk(payload)).unwrap(),
     updateStatus: (id, status) => dispatch(updateStatusThunk({ id, status })).unwrap(),

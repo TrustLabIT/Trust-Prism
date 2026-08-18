@@ -45,6 +45,12 @@ export const lodgeOutcome = createAsyncThunk("assets/lodge", async ({ id, outcom
   return asset;
 });
 
+export const removeOutcome = createAsyncThunk("assets/removeOutcome", async ({ id, index }) => {
+  const path = index === undefined || index === null ? `/assets/${id}/outcomes` : `/assets/${id}/outcomes/${index}`;
+  const { asset } = await api.del(path);
+  return asset;
+});
+
 export const updateStatus = createAsyncThunk("assets/updateStatus", async ({ id, status }, thunkAPI) => {
   const { asset } = await api.patch(`/assets/${id}/status`, { status });
   thunkAPI.dispatch(fetchAssetStats());
@@ -112,6 +118,7 @@ const assetsSlice = createSlice({
     b.addCase(uploadImage.fulfilled, (s, a) => { s.items.unshift(a.payload); s.total += 1; });
     b.addCase(confirmUpload.fulfilled, (s, a) => { s.items.unshift(a.payload); s.total += 1; });
     b.addCase(lodgeOutcome.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
+    b.addCase(removeOutcome.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(updateStatus.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
     b.addCase(updateAsset.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(replaceAssetFile.fulfilled, (s, a) => { replaceIn(s.items, a.payload.asset); replaceIn(s.approvals, a.payload.asset); });

@@ -374,6 +374,23 @@ const lodgeOutcome = asyncHandler(async (req, res) => {
   res.status(201).json({ asset: await withUrl(a) });
 });
 
+// DELETE /api/assets/:id/outcomes            — clear ALL lodged outcomes
+// DELETE /api/assets/:id/outcomes/:index     — remove a single lodged outcome
+const removeOutcome = asyncHandler(async (req, res) => {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const { index } = req.params;
+  if (index === undefined || index === "") {
+    a.outcomes = [];
+  } else {
+    const i = parseInt(index, 10);
+    if (Number.isNaN(i) || i < 0 || i >= a.outcomes.length) return res.status(400).json({ error: "Invalid outcome index" });
+    a.outcomes.splice(i, 1);
+  }
+  await a.save();
+  res.json({ asset: await withUrl(a) });
+});
+
 // DELETE /api/assets/:id  — owner or Super Admin
 const remove = asyncHandler(async (req, res) => {
   const a = await Asset.findById(req.params.id);
@@ -387,4 +404,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, replaceFile, updateStatus, addComment, lodgeOutcome, remove };
+module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, replaceFile, updateStatus, addComment, lodgeOutcome, removeOutcome, remove };
