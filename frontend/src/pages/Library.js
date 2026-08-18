@@ -8,6 +8,7 @@ import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import { useApp } from "../context/AppContext";
 import AssetCard from "../components/AssetCard";
+import AssetRow from "../components/AssetRow";
 import SkeletonGrid from "../components/SkeletonCard";
 import { catLabel, mediaTax } from "../data/prismData";
 
@@ -59,8 +60,13 @@ export default function Library() {
   }, [hasMore, loading, assetPage, cat, sub, year, searchTerm]);
 
   const years = [...new Set(assets.map((a) => a.year))].sort((x, y) => y - x);
-  const Grid = ({ items }) => (
-    <div className="grid">{items.map((a) => <AssetCard key={a.id} asset={a} />)}</div>
+  const View = ({ items }) => (
+    view === "list"
+      ? <div className="asset-list">
+          <div className="asset-row head"><div></div><div>Name</div><div>Type</div><div>Size</div><div>Date</div><div>Owner</div><div>Status</div></div>
+          {items.map((a) => <AssetRow key={a.id} asset={a} />)}
+        </div>
+      : <div className="grid">{items.map((a) => <AssetCard key={a.id} asset={a} />)}</div>
   );
 
   return (
@@ -112,7 +118,7 @@ export default function Library() {
         <>
           {loading && <div className="lib-bar" />}
           {year !== "all"
-            ? <Grid items={assets} />
+            ? <View items={assets} />
             : years.map((y) => {
                 const items = assets.filter((a) => a.year === y);
                 return (
@@ -122,7 +128,7 @@ export default function Library() {
                       <span className="yc">{items.length} asset{items.length > 1 ? "s" : ""}{hasMore ? "+" : ""}</span>
                       <span className="yl"></span>
                     </div>
-                    <Grid items={items} />
+                    <View items={items} />
                   </div>
                 );
               })}

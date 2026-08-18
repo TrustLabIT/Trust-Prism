@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { lodgeOutcome, updateStatus, updateAsset, downloadAsset, addComment } from "./assetsSlice";
+import { lodgeOutcome, updateStatus, updateAsset, downloadAsset, addComment, replaceAssetFile } from "./assetsSlice";
 
 const CLOSED_MODALS = {
   upload: false, collection: false, editor: false,
@@ -32,6 +32,9 @@ const uiSlice = createSlice({
     b.addCase(updateStatus.fulfilled, refresh);
     b.addCase(updateAsset.fulfilled, refresh);
     b.addCase(addComment.fulfilled, refresh);
+    b.addCase(replaceAssetFile.fulfilled, (s, a) => {
+      if (a.payload.asset && s.drawer.asset && s.drawer.asset.id === a.payload.asset.id) s.drawer.asset = a.payload.asset;
+    });
     b.addCase(downloadAsset.fulfilled, (s, a) => {
       if (a.payload.asset && s.drawer.asset && s.drawer.asset.id === a.payload.asset.id) s.drawer.asset = a.payload.asset;
     });

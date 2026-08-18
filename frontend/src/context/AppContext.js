@@ -32,7 +32,7 @@ import {
   fetchApprovals as fetchApprovalsThunk, fetchAnalytics as fetchAnalyticsThunk,
   uploadImage, confirmUpload as confirmUploadThunk,
   lodgeOutcome as lodgeThunk, updateStatus as updateStatusThunk,
-  updateAsset as updateAssetThunk, addComment as addCommentThunk,
+  updateAsset as updateAssetThunk, replaceAssetFile as replaceAssetFileThunk, addComment as addCommentThunk,
   downloadAsset as downloadAssetThunk, deleteAsset,
 } from "../store/assetsSlice";
 import { login as loginThunk, logout as logoutAction } from "../store/authSlice";
@@ -102,6 +102,7 @@ export function useApp() {
     confirmUpload: (payload) => dispatch(confirmUploadThunk(payload)).unwrap(),
     updateStatus: (id, status) => dispatch(updateStatusThunk({ id, status })).unwrap(),
     updateAsset: (id, patch) => dispatch(updateAssetThunk({ id, patch })).unwrap(),
+    replaceAssetFile: (id, formData) => dispatch(replaceAssetFileThunk({ id, formData })).unwrap(),
     addComment: (id, text) => dispatch(addCommentThunk({ id, text })).unwrap(),
     downloadAsset: (id, reason) => dispatch(downloadAssetThunk({ id, reason })).unwrap(),
     deleteAsset: (id) => dispatch(deleteAsset(id)).unwrap(),

@@ -57,6 +57,11 @@ export const updateAsset = createAsyncThunk("assets/update", async ({ id, patch 
   return asset;
 });
 
+export const replaceAssetFile = createAsyncThunk("assets/replaceFile", async ({ id, formData }) => {
+  const { asset, reapproval } = await api.postForm(`/assets/${id}/file`, formData);
+  return { asset, reapproval };
+});
+
 export const addComment = createAsyncThunk("assets/comment", async ({ id, text }) => {
   const { asset } = await api.post(`/assets/${id}/comments`, { text });
   return asset;
@@ -89,7 +94,7 @@ const assetsSlice = createSlice({
     lastKey: null,
     stats: { total: 0, pending: 0 },
     approvals: [],
-    analytics: { total: 0, top: [] },
+    analytics: { total: 0, top: [], downloads30d: 0, downloadsDeltaPct: null, activeUsers: 0, avgApprovalDays: null, topDownloaded: [], staleCount: 0, taggedPct: 0, pending: 0 },
   },
   reducers: {},
   extraReducers: (b) => {
@@ -109,6 +114,7 @@ const assetsSlice = createSlice({
     b.addCase(lodgeOutcome.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(updateStatus.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
     b.addCase(updateAsset.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
+    b.addCase(replaceAssetFile.fulfilled, (s, a) => { replaceIn(s.items, a.payload.asset); replaceIn(s.approvals, a.payload.asset); });
     b.addCase(downloadAsset.fulfilled, (s, a) => { if (a.payload.asset) replaceIn(s.items, a.payload.asset); });
     b.addCase(addComment.fulfilled, (s, a) => { replaceIn(s.items, a.payload); replaceIn(s.approvals, a.payload); });
     b.addCase(deleteAsset.fulfilled, (s, a) => { s.items = s.items.filter((x) => x.id !== a.payload); s.total = Math.max(0, s.total - 1); });

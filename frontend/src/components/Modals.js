@@ -80,7 +80,7 @@ export default function Modals() {
 
 /* ---------- Edit asset metadata ---------- */
 function EditAssetModal() {
-  const { closeModal, closeDrawer, toast, drawer, updateAsset, deleteAsset, collections } = useApp();
+  const { closeModal, closeDrawer, toast, drawer, updateAsset, replaceAssetFile, deleteAsset, collections } = useApp();
   const a = drawer.asset;
   const [name, setName] = useState(a?.n || "");
   const [cat, setCat] = useState(a?.cat || "Electronic");
@@ -88,7 +88,34 @@ function EditAssetModal() {
   const [tags, setTags] = useState((a?.tags || []).join(", "));
   const [collectionId, setCollectionId] = useState(a?.collection || "");
   const [busy, setBusy] = useState(false);
+  const [newFile, setNewFile] = useState(null);
+  const [newPreview, setNewPreview] = useState(null);
+  const [replacing, setReplacing] = useState(false);
+  const replaceRef = useRef(null);
   if (!a) return null;
+
+  const pickNew = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setNewFile(f);
+    setNewPreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
+  };
+  const clearNew = () => { setNewFile(null); setNewPreview(null); if (replaceRef.current) replaceRef.current.value = ""; };
+  const doReplace = async () => {
+    if (!newFile) return;
+    setReplacing(true);
+    try {
+      const form = new FormData();
+      form.append("file", newFile);
+      const { reapproval } = await replaceAssetFile(a.id, form);
+      toast(reapproval ? "File replaced · sent back for re-approval" : "File replaced");
+      clearNew();
+    } catch (err) {
+      toast(err.message || "Could not replace file");
+    } finally {
+      setReplacing(false);
+    }
+  };
 
   const save = async () => {
     if (!name.trim()) { toast("Name is required"); return; }
@@ -128,6 +155,30 @@ function EditAssetModal() {
     <Scrim onClose={() => closeModal("editAsset")}>
       <div className="modal-head"><h2>Edit asset</h2><button className="iconbtn" onClick={() => closeModal("editAsset")}><CloseIcon sx={{ fontSize: 18 }} /></button></div>
       <div className="modal-body">
+        <div className="field"><label>File</label>
+          <div className="replace-file">
+            <div className="rf-preview">
+              {newPreview || (a.t === "image" && a.url)
+                ? <img src={newPreview || a.url} alt={a.n} />
+                : <span className="type-badge" style={{ position: "static" }}>{a.sub}</span>}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                {newFile ? `New: ${newFile.name}` : "Current file"}
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
+                {newFile ? `${(newFile.size / 1024 / 1024).toFixed(2)} MB` : `${a.dim || "—"} · ${a.size || "—"}`}
+              </div>
+              <input ref={replaceRef} type="file" hidden accept="image/*,video/*,application/pdf" onChange={pickNew} />
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                {!newFile && <button className="btn btn-ghost" onClick={() => replaceRef.current?.click()} disabled={busy}><CloudUploadOutlinedIcon sx={bi} /> Choose new file</button>}
+                {newFile && <button className="btn btn-primary" onClick={doReplace} disabled={replacing}>{replacing ? "Replacing…" : <><CloudUploadOutlinedIcon sx={bi} /> Replace file</>}</button>}
+                {newFile && <button className="btn btn-ghost" onClick={clearNew} disabled={replacing}>Cancel</button>}
+              </div>
+              <div className="ed-note" style={{ marginTop: 6 }}>Images auto-compress · up to 50 MB. Replacing an approved asset sends it back for re-approval.</div>
+            </div>
+          </div>
+        </div>
         <div className="field"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="field-row">
           <div className="field" style={{ flex: 1 }}><label>Category</label>

@@ -3,7 +3,6 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
@@ -87,15 +86,11 @@ export default function DetailDrawer() {
             </div>
             <div className="preview-actions">
               <button className="btn btn-primary" style={{ minWidth: 150 }} disabled={!canUse} title={canUse ? "" : "Only approved assets can be downloaded"} onClick={() => openModal("download")}><FileDownloadOutlinedIcon sx={{ fontSize: 17 }} /> Download</button>
-              <button className="btn btn-ghost" disabled={!canUse} title={canUse ? "" : "Only approved assets can be shared"} onClick={async () => {
-                try { await navigator.clipboard.writeText(a.url || ""); toast("Share link copied to clipboard"); }
-                catch { toast("Could not copy link"); }
-              }}><LinkOutlinedIcon sx={{ fontSize: 17 }} /> Share</button>
               <button className="btn btn-ghost" onClick={() => openModal("editAsset")}><EditOutlinedIcon sx={{ fontSize: 16 }} /> Edit</button>
             </div>
             {!canUse && (
               <div className="ssub" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -6 }}>
-                <LockOutlinedIcon sx={{ fontSize: 14 }} /> Download &amp; share unlock once this asset is <b>approved</b>.
+                <LockOutlinedIcon sx={{ fontSize: 14 }} /> Download unlocks once this asset is <b>approved</b>.
               </div>
             )}
             <div>

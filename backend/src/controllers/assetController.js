@@ -63,9 +63,15 @@ const stats = asyncHandler(async (req, res) => {
   res.json({ total, pending });
 });
 
-// GET /api/assets/analytics — server-side aggregate (top assets by views)
+// GET /api/assets/analytics — fully computed from live data (no hardcoded numbers)
 const analytics = asyncHandler(async (req, res) => {
   const base = accessFilter(req.user);
+  const now = Date.now();
+  const d30 = new Date(now - 30 * 864e5);
+  const d60 = new Date(now - 60 * 864e5);
+  const d365 = new Date(now - 365 * 864e5);
+
+  // Campaign outcomes — top assets by views/impressions across lodged outcomes
   const top = await Asset.aggregate([
     { $match: base },
     { $addFields: {
@@ -78,8 +84,72 @@ const analytics = asyncHandler(async (req, res) => {
     { $limit: 6 },
     { $project: { _id: 0, n: "$name", views: "$totalViews", conv: "$totalConv" } },
   ]);
-  const total = await Asset.countDocuments(base);
-  res.json({ total, top });
+
+  // Per-asset rollups → org summary (downloads, staleness, tagging, approval time)
+  const [summary] = await Asset.aggregate([
+    { $match: base },
+    { $project: {
+        status: 1, createdAt: 1, updatedAt: 1,
+        dl30: { $size: { $filter: { input: { $ifNull: ["$downloadLog", []] }, as: "d", cond: { $gte: ["$$d.date", d30] } } } },
+        dlPrev: { $size: { $filter: { input: { $ifNull: ["$downloadLog", []] }, as: "d", cond: { $and: [{ $gte: ["$$d.date", d60] }, { $lt: ["$$d.date", d30] }] } } } },
+        lastDl: { $max: "$downloadLog.date" },
+        hasTags: { $gt: [{ $size: { $ifNull: ["$tags", []] } }, 0] },
+    } },
+    { $group: {
+        _id: null,
+        total: { $sum: 1 },
+        downloads30d: { $sum: "$dl30" },
+        downloadsPrev30d: { $sum: "$dlPrev" },
+        tagged: { $sum: { $cond: ["$hasTags", 1, 0] } },
+        pending: { $sum: { $cond: [{ $in: ["$status", ["draft", "review"]] }, 1, 0] } },
+        stale: { $sum: { $cond: [{ $lt: [{ $ifNull: ["$lastDl", "$createdAt"] }, d365] }, 1, 0] } },
+        approvalMsSum: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, { $subtract: ["$updatedAt", "$createdAt"] }, 0] } },
+        approvedCount: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] } },
+    } },
+  ]);
+
+  // Most-downloaded assets (prefer last-30-day activity, fall back to all-time)
+  const topDownloaded = await Asset.aggregate([
+    { $match: base },
+    { $project: { name: 1, dl: 1,
+        dl30: { $size: { $filter: { input: { $ifNull: ["$downloadLog", []] }, as: "d", cond: { $gte: ["$$d.date", d30] } } } } } },
+    { $addFields: { metric: { $cond: [{ $gt: ["$dl30", 0] }, "$dl30", "$dl"] } } },
+    { $match: { metric: { $gt: 0 } } },
+    { $sort: { metric: -1 } },
+    { $limit: 6 },
+    { $project: { _id: 0, n: "$name", v: "$metric" } },
+  ]);
+
+  // Distinct users active (downloaded or commented) in the last 30 days
+  const [active] = await Asset.aggregate([
+    { $match: base },
+    { $project: { users: { $setUnion: [
+        { $map: { input: { $filter: { input: { $ifNull: ["$downloadLog", []] }, as: "d", cond: { $gte: ["$$d.date", d30] } } }, as: "d", in: "$$d.userId" } },
+        { $map: { input: { $filter: { input: { $ifNull: ["$comments", []] }, as: "c", cond: { $gte: ["$$c.date", d30] } } }, as: "c", in: "$$c.userId" } },
+    ] } } },
+    { $unwind: "$users" },
+    { $match: { users: { $ne: null } } },
+    { $group: { _id: "$users" } },
+    { $count: "n" },
+  ]);
+
+  const s = summary || {};
+  const total = s.total || 0;
+  const downloads30d = s.downloads30d || 0;
+  const downloadsPrev30d = s.downloadsPrev30d || 0;
+
+  res.json({
+    total,
+    top,
+    downloads30d,
+    downloadsDeltaPct: downloadsPrev30d ? Math.round(((downloads30d - downloadsPrev30d) / downloadsPrev30d) * 100) : null,
+    activeUsers: active?.n || 0,
+    avgApprovalDays: s.approvedCount ? +(s.approvalMsSum / s.approvedCount / 864e5).toFixed(1) : null,
+    topDownloaded,
+    staleCount: s.stale || 0,
+    taggedPct: total ? Math.round((s.tagged / total) * 100) : 0,
+    pending: s.pending || 0,
+  });
 });
 
 // GET /api/assets/:id
@@ -219,6 +289,54 @@ const update = asyncHandler(async (req, res) => {
   res.json({ asset: await withUrl(a) });
 });
 
+// POST /api/assets/:id/file  — replace the underlying file (owner, Brand Manager or Super Admin)
+// Images are re-compressed to WebP; the old S3 object is removed. A changed file on an
+// already-approved asset is sent back to "review" so the new content gets re-approved.
+const replaceFile = asyncHandler(async (req, res) => {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const isOwner = String(a.owner) === String(req.user.id);
+  if (!isOwner && !["Super Admin", "Brand Manager"].includes(req.user.role)) {
+    return res.status(403).json({ error: "Not allowed to edit this asset" });
+  }
+  if (!req.file) return res.status(400).json({ error: "No file uploaded (field name must be 'file')" });
+
+  const { originalname, mimetype, buffer } = req.file;
+  const oldKey = a.s3Key;
+  const isImage = mimetype.startsWith("image/");
+  const isVideo = mimetype.startsWith("video/");
+
+  let key, contentType, bytes, dim = a.dim;
+  if (isImage) {
+    const c = await s3.compressImage(buffer);            // resize + WebP
+    key = s3.buildKey(originalname, { ext: c.ext });
+    await s3.putObject(key, c.buffer, c.contentType);
+    contentType = c.contentType;
+    bytes = c.compressedBytes;
+    if (c.width && c.height) dim = `${c.width}×${c.height}`;
+  } else {
+    key = s3.buildKey(originalname);
+    await s3.putObject(key, buffer, mimetype);
+    contentType = mimetype;
+    bytes = buffer.length;
+  }
+
+  a.s3Key = key;
+  a.mimeType = contentType;
+  a.bytes = bytes;
+  a.size = humanSize(bytes);
+  a.dim = dim;
+  a.type = isVideo ? "video" : isImage ? "image" : (a.type || "document");
+  const wasApproved = a.status === "approved";
+  if (wasApproved) a.status = "review";                  // new content must be re-approved
+  await a.save();
+
+  // best-effort remove the previous object now that the record points elsewhere
+  if (oldKey && oldKey !== key) { try { await s3.deleteObject(oldKey); } catch (_) { /* ignore */ } }
+
+  res.json({ asset: await withUrl(a), reapproval: wasApproved });
+});
+
 // PATCH /api/assets/:id/status  — move through the approval workflow
 const APPROVERS = ["Super Admin", "Brand Manager", "Reviewer"];
 const updateStatus = asyncHandler(async (req, res) => {
@@ -269,4 +387,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, updateStatus, addComment, lodgeOutcome, remove };
+module.exports = { list, stats, analytics, getOne, uploadImage, presign, confirmUpload, downloadUrl, update, replaceFile, updateStatus, addComment, lodgeOutcome, remove };

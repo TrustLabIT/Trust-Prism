@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import AddIcon from "@mui/icons-material/Add";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -15,25 +14,15 @@ import { confirmDialog, promptDialog } from "../components/Dialogs";
 
 export default function BrandKit() {
   const {
-    brandKit, brandCanEdit, updateBrandKit, uploadLogo, removeLogo, toast,
+    brandKit, brandCanEdit, uploadLogo, removeLogo, toast,
     brandDocs, brandDocsHasMore, brandDocsTotal, brandDocsStatus, brandDocsPage,
     fetchBrandDocs, uploadBrandDoc, renameBrandDoc, deleteBrandDoc, getBrandDocUrl,
   } = useApp();
-  const [colors, setColors] = useState([]);
-  const [fonts, setFonts] = useState({ heading: "", body: "" });
-  const [savingC, setSavingC] = useState(false);
-  const [savingF, setSavingF] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [logoDark, setLogoDark] = useState(false);
   const [docBusy, setDocBusy] = useState(false);
   const fileRef = useRef(null);
   const docRef = useRef(null);
-
-  // seed local edit state from the loaded kit
-  useEffect(() => {
-    setColors(brandKit.colors || []);
-    setFonts({ heading: brandKit.fonts?.heading || "", body: brandKit.fonts?.body || "" });
-  }, [brandKit]);
 
   // load first page of brand documents once
   useEffect(() => {
@@ -74,20 +63,6 @@ export default function BrandKit() {
   };
   const loadMoreDocs = () => fetchBrandDocs({ page: brandDocsPage + 1, append: true }).catch((e) => toast(e.message));
 
-  const setColor = (i, patch) => setColors((cs) => cs.map((c, x) => (x === i ? { ...c, ...patch } : c)));
-  const addColor = () => setColors((cs) => [...cs, { name: "New", hex: "#4f46e5" }]);
-  const delColor = (i) => setColors((cs) => cs.filter((_, x) => x !== i));
-
-  const saveColors = async () => {
-    setSavingC(true);
-    try { await updateBrandKit({ colors }); toast("Color palette saved"); }
-    catch (e) { toast(e.message); } finally { setSavingC(false); }
-  };
-  const saveFonts = async () => {
-    setSavingF(true);
-    try { await updateBrandKit({ fonts }); toast("Typography saved"); }
-    catch (e) { toast(e.message); } finally { setSavingF(false); }
-  };
   const pickLogo = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -123,65 +98,6 @@ export default function BrandKit() {
           <p>Only a <b>Brand Manager</b> or <b>Super Admin</b> can edit the Brand Kit. You can view the current brand assets below.</p>
         </div>
       )}
-
-      {/* Colors */}
-      <div className="bk-section">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div><h3>Color Palette</h3><div className="desc">Primary and secondary brand colors with usage rules.</div></div>
-          {brandCanEdit && (
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-ghost" onClick={addColor}><AddIcon sx={{ fontSize: 16 }} /> Add color</button>
-              <button className="btn btn-primary" onClick={saveColors} disabled={savingC}>{savingC ? "Saving…" : "Save colors"}</button>
-            </div>
-          )}
-        </div>
-        <div className="swatches">
-          {colors.map((c, i) => (
-            <div className="swatch" key={i}>
-              {brandCanEdit ? (
-                <>
-                  <label className="chipc" style={{ background: c.hex, display: "block", cursor: "pointer" }}>
-                    <input type="color" value={c.hex} onChange={(e) => setColor(i, { hex: e.target.value })} style={{ opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                  </label>
-                  <input value={c.name} onChange={(e) => setColor(i, { name: e.target.value })} style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 6px", fontSize: 12, fontWeight: 700, marginTop: 7 }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
-                    <span className="sh">{c.hex}</span>
-                    <button onClick={() => delColor(i)} title="Remove" style={{ color: "var(--danger)", display: "grid", placeItems: "center" }}><CloseIcon sx={{ fontSize: 14 }} /></button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="chipc" style={{ background: c.hex }}></div>
-                  <div className="sn">{c.name}</div><div className="sh">{c.hex}</div>
-                </>
-              )}
-            </div>
-          ))}
-          {colors.length === 0 && <div className="perf-empty">No colors defined yet.</div>}
-        </div>
-      </div>
-
-      {/* Typography */}
-      <div className="bk-section">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div><h3>Typography</h3><div className="desc">Approved typefaces for headings and body.</div></div>
-          {brandCanEdit && <button className="btn btn-primary" onClick={saveFonts} disabled={savingF}>{savingF ? "Saving…" : "Save fonts"}</button>}
-        </div>
-        <div className="fonts">
-          <div className="fontcard">
-            <div className="fbig" style={{ fontFamily: "Georgia,serif" }}>Aa Bb Cc</div>
-            {brandCanEdit
-              ? <input value={fonts.heading} onChange={(e) => setFonts((f) => ({ ...f, heading: e.target.value }))} placeholder="Heading font" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "6px 8px", marginTop: 8 }} />
-              : <div className="fname">Headings · "{fonts.heading || "—"}"</div>}
-          </div>
-          <div className="fontcard">
-            <div className="fbig" style={{ fontFamily: "-apple-system,sans-serif", fontWeight: 400 }}>Aa Bb Cc</div>
-            {brandCanEdit
-              ? <input value={fonts.body} onChange={(e) => setFonts((f) => ({ ...f, body: e.target.value }))} placeholder="Body font" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "6px 8px", marginTop: 8 }} />
-              : <div className="fname">Body · "{fonts.body || "—"}"</div>}
-          </div>
-        </div>
-      </div>
 
       {/* Logos */}
       <div className="bk-section">
