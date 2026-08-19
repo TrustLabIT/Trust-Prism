@@ -111,7 +111,7 @@ export default function Upload() {
   );
 
   return (
-    <>
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
       <div className="crumb">Create / <b>New Asset</b></div>
       <h2 className="h1">New asset</h2>
       <p className="sub">A guided upload is the only thing that keeps a taxonomy alive. Free-text folders and optional tags decay within a quarter.</p>
@@ -211,6 +211,6 @@ export default function Upload() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
