@@ -1,148 +1,135 @@
-// Thin facade over the Redux store so existing components keep the same API
-// (useApp). All state now lives in Redux Toolkit slices; this hook just wires
-// selectors + dispatch. New auth/asset actions are exposed here too.
+// Thin facade over the Redux store for TrustMark. Components call useApp().
 import { useSelector, useDispatch } from "react-redux";
 import {
-  setSearchTerm, openDrawer, closeDrawer, setDrawerTab,
-  openModal, closeModal, closeAllModals, toast as toastThunk,
-} from "../store/uiSlice";
-import {
-  fetchCollections as fetchCollectionsThunk, addCollection as addCollectionThunk,
-} from "../store/collectionsSlice";
-import {
-  fetchShares as fetchSharesThunk, addShare as addShareThunk, removeShare as removeShareThunk,
-} from "../store/sharesSlice";
-import {
-  fetchTemplates as fetchTemplatesThunk, addTemplate as addTemplateThunk,
-} from "../store/templatesSlice";
-import {
-  fetchBrandKit as fetchBrandKitThunk, updateBrandKit as updateBrandKitThunk,
-  uploadLogo as uploadLogoThunk, removeLogo as removeLogoThunk,
-  fetchBrandDocs as fetchBrandDocsThunk, uploadBrandDoc as uploadBrandDocThunk,
-  renameBrandDoc as renameBrandDocThunk, deleteBrandDoc as deleteBrandDocThunk,
-} from "../store/brandKitSlice";
-import { api } from "../api/client";
-import {
-  fetchUsers as fetchUsersThunk, addUser as addUserThunk,
-  toggleScope as toggleScopeThunk, removeUser as removeUserThunk,
-  setPassword as setPasswordThunk, updateUser as updateUserThunk,
-} from "../store/usersSlice";
-import {
-  fetchAssets as fetchAssetsThunk, fetchAssetStats as fetchAssetStatsThunk,
-  fetchApprovals as fetchApprovalsThunk, fetchAnalytics as fetchAnalyticsThunk,
-  uploadImage, confirmUpload as confirmUploadThunk,
-  lodgeOutcome as lodgeThunk, removeOutcome as removeOutcomeThunk, updateStatus as updateStatusThunk,
-  updateAsset as updateAssetThunk, replaceAssetFile as replaceAssetFileThunk, addComment as addCommentThunk,
-  downloadAsset as downloadAssetThunk, deleteAsset,
+  fetchAssets as fetchAssetsThunk, fetchCounts as fetchCountsThunk,
+  fetchApprovals as fetchApprovalsThunk, confirmUpload as confirmUploadThunk,
+  updateStatus as updateStatusThunk, updateAsset as updateAssetThunk,
+  deleteAsset as deleteAssetThunk, downloadAsset as downloadAssetThunk,
 } from "../store/assetsSlice";
+import {
+  setSearch, setLibDomain, setLibSub, openDrawer, closeDrawer, setToast,
+} from "../store/uiSlice";
+import { fetchShares as fetchSharesThunk, addShare as addShareThunk, updateShare as updateShareThunk, removeShare as removeShareThunk } from "../store/sharesSlice";
+import {
+  fetchUsers as fetchUsersThunk, addUser as addUserThunk, updateUser as updateUserThunk,
+  toggleScope as toggleScopeThunk, setPassword as setPasswordThunk, removeUser as removeUserThunk,
+} from "../store/usersSlice";
+import { fetchTaxonomy as fetchTaxonomyThunk, saveTaxonomy as saveTaxonomyThunk } from "../store/taxonomySlice";
 import { login as loginThunk, logout as logoutAction } from "../store/authSlice";
 
-const GUEST = { name: "", role: "", org: "Internal", scope: "all", type: "Internal" };
+const APPROVER_ROLES = ["Super Admin", "Brand Manager", "Reviewer"];
+const LIBRARY_STATUS_FILTER = ["Live", "Approved", "Archived"];   // Draft/In review/Expired have their own places
+
+const GUEST = { name: "", role: "", org: "Internal", scope: "all" };
 
 export function useApp() {
   const dispatch = useDispatch();
 
+  const user = useSelector((s) => s.auth.user) || GUEST;
+  const authStatus = useSelector((s) => s.auth.status);
   const assets = useSelector((s) => s.assets.items);
   const assetsStatus = useSelector((s) => s.assets.status);
   const hasMore = useSelector((s) => s.assets.hasMore);
-  const assetPage = useSelector((s) => s.assets.page);
-  const assetsKey = useSelector((s) => s.assets.lastKey);
-  const assetStats = useSelector((s) => s.assets.stats);
+  const page = useSelector((s) => s.assets.page);
+  const total = useSelector((s) => s.assets.total);
+  const lastKey = useSelector((s) => s.assets.lastKey);
+  const counts = useSelector((s) => s.assets.counts);
   const approvals = useSelector((s) => s.assets.approvals);
-  const analytics = useSelector((s) => s.assets.analytics);
-  const collections = useSelector((s) => s.collections.items);
-  const users = useSelector((s) => s.users.items);
-  const shares = useSelector((s) => s.shares.items);
-  const templates = useSelector((s) => s.templates.items);
-  const brandKit = useSelector((s) => s.brandKit.kit);
-  const brandCanEdit = useSelector((s) => s.brandKit.canEdit);
-  const brandDocs = useSelector((s) => s.brandKit.docs);
-  const brandDocsHasMore = useSelector((s) => s.brandKit.docsHasMore);
-  const brandDocsTotal = useSelector((s) => s.brandKit.docsTotal);
-  const brandDocsPage = useSelector((s) => s.brandKit.docsPage);
-  const brandDocsStatus = useSelector((s) => s.brandKit.docsStatus);
-  // agencies = distinct external orgs, derived from the users list
-  const agencies = [...new Set(users.filter((u) => u.type === "External").map((u) => u.org))];
-  const currentUser = useSelector((s) => s.auth.user) || GUEST;
-  const authStatus = useSelector((s) => s.auth.status);
-  const authError = useSelector((s) => s.auth.error);
-  const searchTerm = useSelector((s) => s.ui.searchTerm);
-  const drawer = useSelector((s) => s.ui.drawer);
-  const modals = useSelector((s) => s.ui.modals);
-  const modalData = useSelector((s) => s.ui.modalData);
-  const toastState = useSelector((s) => s.ui.toast);
+  const approvalsStatus = useSelector((s) => s.assets.approvalsStatus);
 
-  const isSuperAdmin = currentUser.role === "Super Admin";
-  const canSeeAll = currentUser.scope === "all";
-  const canSee = (org) => canSeeAll || org === currentUser.org;
+  const shares = useSelector((s) => s.shares.items);
+  const sharesPage = useSelector((s) => s.shares.page);
+  const sharesHasMore = useSelector((s) => s.shares.hasMore);
+  const sharesTotal = useSelector((s) => s.shares.total);
+  const sharesStatus = useSelector((s) => s.shares.status);
+  const users = useSelector((s) => s.users.items);
+  const usersPage = useSelector((s) => s.users.page);
+  const usersHasMore = useSelector((s) => s.users.hasMore);
+  const usersTotal = useSelector((s) => s.users.total);
+  const usersStatus = useSelector((s) => s.users.status);
+  const taxState = useSelector((s) => s.taxonomy);
+  const search = useSelector((s) => s.ui.search);
+
+  // live taxonomy + helpers (components read everything through this)
+  const domById = (id) => (taxState.domains || []).find((d) => d.id === id) || null;
+  const subById = (d, s) => { const D = domById(d); return D ? (D.subs || []).find((x) => x.id === s) || null : null; };
+  const tax = {
+    ...taxState,
+    dom: domById,
+    subOf: subById,
+    pathOf: (a) => `${domById(a.domain)?.name || a.domain} › ${subById(a.domain, a.sub)?.name || a.sub} › ${a.type}`,
+    FACETS: [
+      ["status", "Status", LIBRARY_STATUS_FILTER],
+      ["dist", "Distribution", taxState.dists],
+      ["channel", "Channel", taxState.channels],
+      ["audience", "Audience", taxState.audiences],
+      ["campaign", "Campaign", taxState.campaigns],
+      ["service", "Service line", taxState.services],
+      ["geo", "Geography", taxState.geos],
+      ["lang", "Language", taxState.langs],
+    ],
+  };
+
+  // role-based permissions
+  const role = user.role || "";
+  const perms = {
+    isSuperAdmin: role === "Super Admin",
+    isApprover: APPROVER_ROLES.includes(role),
+    canUpload: role !== "Viewer" && !!role,
+    canManageUsers: role === "Super Admin",
+    canManageSettings: role === "Super Admin",   // taxonomy + users share "settings access"
+  };
+  const libDomain = useSelector((s) => s.ui.libDomain);
+  const libSub = useSelector((s) => s.ui.libSub);
+  const drawer = useSelector((s) => s.ui.drawer);
+
+  const toast = (msg) => {
+    dispatch(setToast({ msg, show: true }));
+    setTimeout(() => dispatch(setToast({ msg: "", show: false })), 2400);
+  };
 
   return {
+    user, authStatus, perms, tax,
+    assets, assetsStatus, hasMore, page, total, lastKey, counts, approvals, approvalsStatus,
+    shares, sharesPage, sharesHasMore, sharesTotal, sharesStatus, users, usersPage, usersHasMore, usersTotal, usersStatus, search, libDomain, libSub, drawer,
+
     // data
-    assets, assetsStatus, hasMore, assetPage, assetsKey, assetStats, approvals, analytics,
-    collections, users, shares, templates, agencies,
-    // access
-    currentUser, isSuperAdmin, canSeeAll, canSee,
-    // search
-    searchTerm, setSearchTerm: (v) => dispatch(setSearchTerm(v)),
-    // toast
-    toast: (m) => dispatch(toastThunk(m)), toastMsg: toastState.msg, toastShow: toastState.show,
-    // drawer
-    drawer,
-    openDrawer: (asset, tab) => dispatch(openDrawer({ asset, tab })),
-    closeDrawer: () => dispatch(closeDrawer()),
-    setDrawerTab: (t) => dispatch(setDrawerTab(t)),
-    // modals
-    modals, modalData,
-    openModal: (name, data) => dispatch(openModal({ name, data })),
-    closeModal: (name) => dispatch(closeModal(name)),
-    closeAllModals: () => dispatch(closeAllModals()),
-    // asset mutations + loading (API-backed)
-    lodgeOutcome: (id, rec) => dispatch(lodgeThunk({ id, outcome: rec })).unwrap(),
-    removeOutcome: (id, index) => dispatch(removeOutcomeThunk({ id, index })).unwrap(),
-    uploadImage: (form) => dispatch(uploadImage(form)).unwrap(),
+    fetchAssets: (opts) => dispatch(fetchAssetsThunk(opts)),
+    fetchCounts: () => dispatch(fetchCountsThunk()),
+    fetchApprovals: (r) => dispatch(fetchApprovalsThunk(r)),
     confirmUpload: (payload) => dispatch(confirmUploadThunk(payload)).unwrap(),
-    updateStatus: (id, status) => dispatch(updateStatusThunk({ id, status })).unwrap(),
+    updateStatus: (id, action) => dispatch(updateStatusThunk({ id, action })).unwrap(),
     updateAsset: (id, patch) => dispatch(updateAssetThunk({ id, patch })).unwrap(),
-    replaceAssetFile: (id, formData) => dispatch(replaceAssetFileThunk({ id, formData })).unwrap(),
-    addComment: (id, text) => dispatch(addCommentThunk({ id, text })).unwrap(),
-    downloadAsset: (id, reason) => dispatch(downloadAssetThunk({ id, reason })).unwrap(),
-    deleteAsset: (id) => dispatch(deleteAsset(id)).unwrap(),
-    fetchAssets: (params) => dispatch(fetchAssetsThunk(params)),
-    fetchAssetStats: () => dispatch(fetchAssetStatsThunk()),
-    fetchApprovals: () => dispatch(fetchApprovalsThunk()),
-    fetchAnalytics: () => dispatch(fetchAnalyticsThunk()),
-    // collections (API-backed)
-    fetchCollections: () => dispatch(fetchCollectionsThunk()),
-    addCollection: (payload) => dispatch(addCollectionThunk(payload)).unwrap(),
-    // users (API-backed)
-    fetchUsers: () => dispatch(fetchUsersThunk()),
+    deleteAsset: (id) => dispatch(deleteAssetThunk(id)).unwrap(),
+    downloadAsset: (id) => dispatch(downloadAssetThunk(id)).unwrap(),
+
+    // shared links
+    fetchShares: (opts) => dispatch(fetchSharesThunk(opts)),
+    addShare: (payload) => dispatch(addShareThunk(payload)).unwrap(),
+    updateShare: (id, patch) => dispatch(updateShareThunk({ id, patch })).unwrap(),
+    removeShare: (id) => dispatch(removeShareThunk(id)).unwrap(),
+
+    // taxonomy (editable in Settings)
+    fetchTaxonomy: () => dispatch(fetchTaxonomyThunk()),
+    saveTaxonomy: (payload) => dispatch(saveTaxonomyThunk(payload)).unwrap(),
+
+    // users (Super Admin only)
+    fetchUsers: (opts) => dispatch(fetchUsersThunk(opts)),
     addUser: (payload) => dispatch(addUserThunk(payload)).unwrap(),
     updateUser: (id, patch) => dispatch(updateUserThunk({ id, patch })).unwrap(),
-    setUserPassword: (id, password) => dispatch(setPasswordThunk({ id, password })).unwrap(),
     toggleScope: (id) => dispatch(toggleScopeThunk(id)).unwrap(),
+    setUserPassword: (id, password) => dispatch(setPasswordThunk({ id, password })).unwrap(),
     removeUser: (id) => dispatch(removeUserThunk(id)).unwrap(),
-    // shares (API-backed)
-    fetchShares: () => dispatch(fetchSharesThunk()),
-    addShare: (payload) => dispatch(addShareThunk(payload)).unwrap(),
-    removeShare: (id) => dispatch(removeShareThunk(id)).unwrap(),
-    // templates (API-backed)
-    fetchTemplates: () => dispatch(fetchTemplatesThunk()),
-    addTemplate: (payload) => dispatch(addTemplateThunk(payload)).unwrap(),
-    // brand kit (API-backed)
-    brandKit, brandCanEdit,
-    fetchBrandKit: () => dispatch(fetchBrandKitThunk()),
-    updateBrandKit: (payload) => dispatch(updateBrandKitThunk(payload)).unwrap(),
-    uploadLogo: (form) => dispatch(uploadLogoThunk(form)).unwrap(),
-    removeLogo: (key) => dispatch(removeLogoThunk(key)).unwrap(),
-    // brand documents (S3 + pagination + CRUD)
-    brandDocs, brandDocsHasMore, brandDocsTotal, brandDocsPage, brandDocsStatus,
-    fetchBrandDocs: (opts) => dispatch(fetchBrandDocsThunk(opts)).unwrap(),
-    uploadBrandDoc: (form) => dispatch(uploadBrandDocThunk(form)).unwrap(),
-    renameBrandDoc: (id, name) => dispatch(renameBrandDocThunk({ id, name })).unwrap(),
-    deleteBrandDoc: (id) => dispatch(deleteBrandDocThunk(id)).unwrap(),
-    getBrandDocUrl: (id, download) => api.get(`/brandkit/docs/${id}/url${download ? "?download=1" : ""}`).then((r) => r.url),
+
+    // ui
+    setSearch: (v) => dispatch(setSearch(v)),
+    setLibDomain: (v) => dispatch(setLibDomain(v)),
+    setLibSub: (v) => dispatch(setLibSub(v)),
+    openDrawer: (asset) => dispatch(openDrawer(asset)),
+    closeDrawer: () => dispatch(closeDrawer()),
+    toast,
+
     // auth
-    authStatus, authError,
     login: (email, password) => dispatch(loginThunk({ email, password })).unwrap(),
     logout: () => dispatch(logoutAction()),
   };

@@ -1,130 +1,125 @@
-import { useState, useEffect } from "react";
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
-import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
-import MailOutlineIcon from "@mui/icons-material/MailOutline";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { OrgIcon } from "../components/Icon";
-import { confirmDialog, passwordDialog } from "../components/Dialogs";
-import { initials, avColor } from "../utils/helpers";
+import { confirmDialog } from "../components/Dialogs";
 
-const li = { fontSize: 15 };
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 24) || ("d" + Date.now().toString(36));
 
-const FILTERS = [
-  ["all", "All users"], ["Internal", "Internal"],
-  ["External", "External / agencies"], ["allwork", "Sees all work"],
+// Editable list of strings, rendered as removable chips + an add input.
+function ChipList({ values, onChange }) {
+  const [v, setV] = useState("");
+  const add = () => { const x = v.trim(); if (x && !values.includes(x)) onChange([...values, x]); setV(""); };
+  return (
+    <div className="chipedit">
+      {values.map((val) => (
+        <span className="c" key={val}>{val}<b onClick={() => onChange(values.filter((y) => y !== val))}>×</b></span>
+      ))}
+      <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} placeholder="Add…" />
+    </div>
+  );
+}
+
+const VOCAB = [
+  ["channels", "Channels"], ["dists", "Distribution classes"], ["audiences", "Audiences"],
+  ["campaigns", "Campaigns"], ["services", "Service lines"], ["geos", "Geographies"],
+  ["langs", "Languages"], ["specs", "Production specs"],
 ];
 
 export default function Settings() {
-  const { users, isSuperAdmin, setUserPassword, removeUser, openModal, toast, fetchUsers } = useApp();
-  const [filter, setFilter] = useState("all");
+  const { tax, saveTaxonomy, perms, toast } = useApp();
+  const [t, setT] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  // Load the real user list when a Super Admin opens Settings
   useEffect(() => {
-    if (isSuperAdmin) fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin]);
+    // seed the working copy from the live taxonomy
+    setT(JSON.parse(JSON.stringify({
+      domains: tax.domains, channels: tax.channels, dists: tax.dists, audiences: tax.audiences,
+      campaigns: tax.campaigns, services: tax.services, geos: tax.geos, langs: tax.langs, specs: tax.specs,
+    })));
+  }, [tax.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const stUsers = users.length;
-  const stAgencies = new Set(users.filter((u) => u.type === "External").map((u) => u.org)).size;
-  const stAll = users.filter((u) => u.scope === "all").length;
-  const stInvited = users.filter((u) => u.status === "Invited").length;
+  if (!perms.canManageSettings) return (
+    <><div className="crumb">Admin / <b>Settings</b></div><div className="empty"><b>Restricted</b>Only a Super Admin can edit the taxonomy.</div></>
+  );
+  if (!t) return <div className="empty">Loading…</div>;
 
-  let list = users.slice();
-  if (filter === "Internal") list = list.filter((u) => u.type === "Internal");
-  else if (filter === "External") list = list.filter((u) => u.type === "External");
-  else if (filter === "allwork") list = list.filter((u) => u.scope === "all");
+  const setVocab = (k, vals) => setT((s) => ({ ...s, [k]: vals }));
+  const setDomains = (domains) => setT((s) => ({ ...s, domains }));
+  const patchDomain = (i, patch) => setDomains(t.domains.map((d, x) => (x === i ? { ...d, ...patch } : d)));
+  const patchSub = (di, si, patch) => patchDomain(di, { subs: t.domains[di].subs.map((s, x) => (x === si ? { ...s, ...patch } : s)) });
 
-  const setPw = async (u) => {
-    const pw = await passwordDialog({ title: "Set password", name: u.name });
-    if (!pw) return;
-    try { await setUserPassword(u.id, pw); toast(`Password set for ${u.name}`); }
-    catch (err) { toast(err.message || "Could not set password"); }
+  const addDomain = () => setDomains([...t.domains, { id: slug("domain " + (t.domains.length + 1)), name: "New domain", color: "#16624C", tint: "#E4F2ED", note: "", test: "", subs: [] }]);
+  const delDomain = async (i) => {
+    const ok = await confirmDialog({ title: "Delete domain", message: `Delete “${t.domains[i].name}” and its sub-modules? Existing assets filed under it will be hidden until re-filed.`, confirmLabel: "Delete", danger: true });
+    if (ok) setDomains(t.domains.filter((_, x) => x !== i));
   };
-  const del = async (u) => {
-    const ok = await confirmDialog({
-      title: "Remove user",
-      message: `Remove ${u.name} (${u.email})? They will lose access immediately. This cannot be undone.`,
-      confirmLabel: "Remove", danger: true,
-    });
-    if (!ok) return;
-    try { await removeUser(u.id); toast(`Removed ${u.name}`); }
-    catch (err) { toast(err.message || "Could not remove user"); }
+  const addSub = (di) => patchDomain(di, { subs: [...(t.domains[di].subs || []), { id: slug("sub " + Date.now()), name: "New sub-module", types: [] }] });
+  const delSub = (di, si) => patchDomain(di, { subs: t.domains[di].subs.filter((_, x) => x !== si) });
+
+  const save = async () => {
+    setBusy(true);
+    try { await saveTaxonomy(t); toast("Taxonomy saved — it's live in the New Asset flow"); }
+    catch (e) { toast(e.message || "Could not save"); }
+    finally { setBusy(false); }
   };
 
   return (
-    <section className="page">
-      <div className="page-head">
-        <div>
-          <div className="crumbs">Admin / <b>Settings &amp; Users</b></div>
-          <h1>User Management</h1><p>Set up internal team members and external agencies, and control what each can see.</p>
+    <>
+      <div className="crumb">Admin / <b>Settings · Taxonomy</b></div>
+      <h2 className="h1">Taxonomy &amp; dropdowns</h2>
+      <p className="sub">Everything the New Asset wizard and Library filters offer, by step and field. Add or remove values here and they appear immediately across the app.</p>
+
+      <div className="tx-card">
+        <h3>Step 3 · Filter dropdowns</h3>
+        <p className="d">The value lists shown as dropdowns when describing an asset (and as filters in the Library).</p>
+        <div className="tx-grid">
+          {VOCAB.map(([k, label]) => (
+            <div className="tx-vocab" key={k}>
+              <label>{label}</label>
+              <ChipList values={t[k] || []} onChange={(vals) => setVocab(k, vals)} />
+            </div>
+          ))}
         </div>
-        {isSuperAdmin && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn btn-ghost" onClick={() => openModal("user", { userType: "External" })}>＋ Invite agency</button>
-            <button className="btn btn-primary" onClick={() => openModal("user", { userType: "Internal" })}>＋ Add user</button>
-          </div>
-        )}
       </div>
 
-      {!isSuperAdmin ? (
-        <div className="empty"><LockOutlinedIcon sx={{ fontSize: 15, verticalAlign: "-3px" }} /> Only a Super Admin can manage users.</div>
-      ) : (
-        <>
-          <div className="callout-card">
-            <b><VpnKeyOutlinedIcon sx={{ fontSize: 15, verticalAlign: "-3px" }} /> How access works</b>
-            <p>By default every user sees <b>only their own work</b> — the assets and collections their organization created. External agencies can store, work on and comment on assets, but each agency sees only its own past and present work. A <b>Super Admin</b> can grant specific users <b>"All work"</b> access, and only a Super Admin can add or edit users.</p>
-          </div>
+      <div className="tx-card">
+        <h3>Steps 1–2 · Domains, sub-modules &amp; asset types</h3>
+        <p className="d">The structure the classify/file-it steps use. Asset <b>types</b> are the dropdown at step 2.</p>
+        {t.domains.map((d, di) => (
+          <div className="tx-domain" style={{ "--c": d.color }} key={di}>
+            <div className="tx-drow">
+              <input type="color" value={d.color} onChange={(e) => patchDomain(di, { color: e.target.value })} title="Domain colour" />
+              <input type="text" value={d.name} onChange={(e) => patchDomain(di, { name: e.target.value })} placeholder="Domain name" style={{ flex: 1, minWidth: 160, fontWeight: 700 }} />
+              <span className="pathcell">id: {d.id}</span>
+              <button className="btn sm dgr" onClick={() => delDomain(di)}>Delete domain</button>
+            </div>
+            <div className="two" style={{ marginTop: 10 }}>
+              <div className="field" style={{ margin: 0 }}><label>Description</label><input type="text" value={d.note || ""} onChange={(e) => patchDomain(di, { note: e.target.value })} /></div>
+              <div className="field" style={{ margin: 0 }}><label>Sorting test</label><input type="text" value={d.test || ""} onChange={(e) => patchDomain(di, { test: e.target.value })} /></div>
+            </div>
 
-          <div className="stats" style={{ marginTop: 18 }}>
-            <div className="stat"><div className="lab"><GroupOutlinedIcon sx={li} /> Total users</div><div className="val">{stUsers}</div></div>
-            <div className="stat"><div className="lab"><BusinessOutlinedIcon sx={li} /> External agencies</div><div className="val">{stAgencies}</div></div>
-            <div className="stat"><div className="lab"><PublicOutlinedIcon sx={li} /> Can see all work</div><div className="val">{stAll}</div></div>
-            <div className="stat"><div className="lab"><MailOutlineIcon sx={li} /> Pending invites</div><div className="val">{stInvited}</div></div>
-          </div>
-
-          <div className="filters" style={{ marginTop: 20 }}>
-            {FILTERS.map(([f, label]) => (
-              <button key={f} className={"chip" + (filter === f ? " active" : "")} onClick={() => setFilter(f)}>{label}</button>
-            ))}
-          </div>
-
-          <div className="table">
-            <div className="urow head"><div>User</div><div>Type</div><div>Organization</div><div>Role</div><div>Access</div><div></div></div>
-            {list.map((u) => {
-              const isSup = u.role === "Super Admin";
-              return (
-                <div className="urow" key={u.id}>
-                  <div className="u">
-                    <span className="av" style={{ background: avColor(u.name) }}>{initials(u.name)}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="nm">{u.name}{" "}
-                        {u.status === "Active"
-                          ? <span className="tagc tc-active">Active</span>
-                          : <span className="tagc tc-invited">Invited</span>}
-                      </div>
-                      <div className="em">{u.email}</div>
-                    </div>
-                  </div>
-                  <div>{u.type === "External" ? <span className="tagc tc-ext">External</span> : <span className="tagc tc-int">Internal</span>}</div>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><OrgIcon org={u.org} sx={{ fontSize: 14 }} />{u.org === "Internal" ? "Internal" : u.org}</div>
-                  <div>{isSup ? <span className="tagc tc-super">Super Admin</span> : u.role}</div>
-                  <div>{u.scope === "all" ? <span className="tagc tc-all">All work</span> : <span className="tagc tc-own">Own work</span>}</div>
-                  <div className="uact">
-                    {!isSup && <button title="Edit user" onClick={() => openModal("user", { editUser: u })} style={{ display: "grid", placeItems: "center" }}><EditOutlinedIcon sx={{ fontSize: 15 }} /></button>}
-                    {!isSup && <button title="Set password" onClick={() => setPw(u)} style={{ display: "grid", placeItems: "center" }}><VpnKeyOutlinedIcon sx={{ fontSize: 15 }} /></button>}
-                    {!isSup && <button title="Remove user" onClick={() => del(u)} style={{ display: "grid", placeItems: "center" }}><CloseIcon sx={{ fontSize: 15 }} /></button>}
-                  </div>
+            {(d.subs || []).map((s, si) => (
+              <div className="tx-sub" key={si}>
+                <div className="tx-drow">
+                  <input type="text" value={s.name} onChange={(e) => patchSub(di, si, { name: e.target.value })} placeholder="Sub-module name" style={{ flex: 1, minWidth: 150, fontWeight: 650 }} />
+                  <span className="pathcell">id: {s.id}</span>
+                  <button className="btn sm" onClick={() => delSub(di, si)}>Remove</button>
                 </div>
-              );
-            })}
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--muted)", fontWeight: 700 }}>Asset types</label>
+                  <div style={{ marginTop: 5 }}><ChipList values={s.types || []} onChange={(vals) => patchSub(di, si, { types: vals })} /></div>
+                </div>
+              </div>
+            ))}
+            <button className="btn sm" style={{ marginTop: 10 }} onClick={() => addSub(di)}>+ Add sub-module</button>
           </div>
-        </>
-      )}
-    </section>
+        ))}
+        <button className="btn" onClick={addDomain}>+ Add domain</button>
+      </div>
+
+      <div className="tx-save">
+        <button className="btn p" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        <span className="pathcell">Statuses (Draft → Live → Expired…) are fixed by the lifecycle and aren't editable.</span>
+      </div>
+    </>
   );
 }

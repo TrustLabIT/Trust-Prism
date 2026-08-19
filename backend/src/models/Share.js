@@ -5,8 +5,9 @@ const shareSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     to: { type: String, default: "specific people" },      // audience
-    include: { type: String, default: "A collection" },     // what's shared
-    collectionRef: { type: mongoose.Schema.Types.ObjectId, ref: "Collection", default: null }, // which album (null = whole portal)
+    include: { type: String, default: "Specific assets" },  // "Specific assets" | "A category" | "Whole portal"
+    scopeDomain: { type: String, default: "" },             // when include === "A category": domain id
+    scopeSub: { type: String, default: "" },                // optional sub-module id within that domain
     assets: [{ type: mongoose.Schema.Types.ObjectId, ref: "Asset" }], // when sharing hand-picked assets
     token: { type: String, unique: true, index: true, default: () => crypto.randomBytes(7).toString("hex") }, // public link id
     perm: { type: String, enum: ["View only", "Download"], default: "View only" },
@@ -30,12 +31,14 @@ shareSchema.methods.toCard = function () {
     n: this.name,
     to: this.to,
     include: this.include,
-    collection: this.collectionRef ? String(this.collectionRef) : null,
+    scopeDomain: this.scopeDomain || "",
+    scopeSub: this.scopeSub || "",
     assets: (this.assets || []).map(String),
     token: this.token,
     perm: this.perm,
     exp: this.exp,
-    pw: !!this.password,   // whether it's password-protected (never expose the password)
+    pw: !!this.password,   // whether it's password-protected
+    password: this.password || "",   // shown only to the authenticated owner (never in the public portal)
     wm: this.wm,
     views: this.views,
     dls: this.dls,

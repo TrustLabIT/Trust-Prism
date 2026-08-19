@@ -5,35 +5,33 @@ const ctrl = require("../controllers/assetController");
 
 const router = express.Router();
 
-// in-memory upload; images compressed before hitting S3. 30 MB cap on the
-// direct route — larger files (video) must use /presign for direct-to-S3 upload.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 },
-});
-// replacing a file allows a bit more headroom (images/moderate media)
-const replaceUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
+// Small images go through the server so we can generate a preview + checksum.
+// Anything larger uploads DIRECTLY to S3 via the presign/multipart routes below —
+// those bytes never touch this server, so 50 GB masters don't lag or exhaust memory.
+const smallUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-router.use(protect); // every asset route requires a valid token
+router.use(protect);
 
 router.get("/", ctrl.list);
-router.get("/stats", ctrl.stats);
-router.get("/analytics", ctrl.analytics);
-router.post("/", upload.single("file"), ctrl.uploadImage);
+router.get("/counts", ctrl.counts);
+router.get("/approvals", ctrl.approvals);
+router.get("/expired", ctrl.expired);
+
+// upload — small (server-side preview) path
+router.post("/", smallUpload.single("file"), ctrl.create);
+
+// upload — direct-to-S3 (large) path
 router.post("/presign", ctrl.presign);
-router.post("/confirm", ctrl.confirmUpload);
+router.post("/presign-part", ctrl.signPart);
+router.post("/presign-preview", ctrl.presignPreview);
+router.post("/complete", ctrl.completeUpload);
+router.post("/abort", ctrl.abortUpload);
+router.post("/confirm", ctrl.confirm);
+
 router.get("/:id", ctrl.getOne);
 router.get("/:id/url", ctrl.downloadUrl);
 router.patch("/:id", ctrl.update);
-router.post("/:id/file", replaceUpload.single("file"), ctrl.replaceFile);
 router.patch("/:id/status", ctrl.updateStatus);
-router.post("/:id/comments", ctrl.addComment);
-router.post("/:id/outcomes", ctrl.lodgeOutcome);
-router.delete("/:id/outcomes/:index", ctrl.removeOutcome);
-router.delete("/:id/outcomes", ctrl.removeOutcome);
 router.delete("/:id", ctrl.remove);
 
 module.exports = router;

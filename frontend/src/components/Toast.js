@@ -1,12 +1,10 @@
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import { useApp } from "../context/AppContext";
+import { useSelector } from "react-redux";
 
 export default function Toast() {
-  const { toastMsg, toastShow } = useApp();
+  const toast = useSelector((s) => s.ui.toast);
   return (
-    <div className={"toast" + (toastShow ? " show" : "")}>
-      <CheckCircleRoundedIcon sx={{ fontSize: 16 }} />
-      <span dangerouslySetInnerHTML={{ __html: toastMsg }} />
+    <div className={"toast" + (toast.show ? " on" : "")}>
+      <div className="t">{toast.msg}</div>
     </div>
   );
 }

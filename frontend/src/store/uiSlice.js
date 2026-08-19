@@ -1,58 +1,24 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { lodgeOutcome, removeOutcome, updateStatus, updateAsset, downloadAsset, addComment, replaceAssetFile } from "./assetsSlice";
-
-const CLOSED_MODALS = {
-  upload: false, collection: false, editor: false,
-  user: false, share: false, download: false, editAsset: false,
-};
 
 const uiSlice = createSlice({
   name: "ui",
   initialState: {
-    searchTerm: "",
-    drawer: { open: false, asset: null, tab: "details" },
-    modals: { ...CLOSED_MODALS },
-    modalData: {},
+    search: "",
+    libDomain: "all",      // sidebar ↔ library
+    libSub: null,
+    drawer: { open: false, asset: null },
     toast: { msg: "", show: false },
   },
   reducers: {
-    setSearchTerm: (s, a) => { s.searchTerm = a.payload; },
-    openDrawer: (s, a) => { s.drawer = { open: true, asset: a.payload.asset, tab: a.payload.tab || "details" }; },
+    setSearch: (s, a) => { s.search = a.payload; },
+    setLibDomain: (s, a) => { s.libDomain = a.payload; s.libSub = null; },
+    setLibSub: (s, a) => { s.libSub = a.payload; },
+    openDrawer: (s, a) => { s.drawer = { open: true, asset: a.payload }; },
     closeDrawer: (s) => { s.drawer.open = false; },
-    setDrawerTab: (s, a) => { s.drawer.tab = a.payload; },
-    openModal: (s, a) => { s.modalData = a.payload.data || {}; s.modals = { ...CLOSED_MODALS, [a.payload.name]: true }; },
-    closeModal: (s, a) => { s.modals[a.payload] = false; },
-    closeAllModals: (s) => { s.modals = { ...CLOSED_MODALS }; },
+    setDrawerAsset: (s, a) => { if (s.drawer.asset && a.payload && s.drawer.asset.id === a.payload.id) s.drawer.asset = a.payload; },
     setToast: (s, a) => { s.toast = a.payload; },
-  },
-  extraReducers: (b) => {
-    // keep the open drawer's asset fresh after a mutation
-    const refresh = (s, a) => { if (s.drawer.asset && s.drawer.asset.id === a.payload.id) s.drawer.asset = a.payload; };
-    b.addCase(lodgeOutcome.fulfilled, refresh);
-    b.addCase(removeOutcome.fulfilled, refresh);
-    b.addCase(updateStatus.fulfilled, refresh);
-    b.addCase(updateAsset.fulfilled, refresh);
-    b.addCase(addComment.fulfilled, refresh);
-    b.addCase(replaceAssetFile.fulfilled, (s, a) => {
-      if (a.payload.asset && s.drawer.asset && s.drawer.asset.id === a.payload.asset.id) s.drawer.asset = a.payload.asset;
-    });
-    b.addCase(downloadAsset.fulfilled, (s, a) => {
-      if (a.payload.asset && s.drawer.asset && s.drawer.asset.id === a.payload.asset.id) s.drawer.asset = a.payload.asset;
-    });
   },
 });
 
-export const {
-  setSearchTerm, openDrawer, closeDrawer, setDrawerTab,
-  openModal, closeModal, closeAllModals, setToast,
-} = uiSlice.actions;
-
-// Toast with auto-dismiss (thunk so the timer lives outside the reducer)
-let toastTimer;
-export const toast = (msg) => (dispatch) => {
-  dispatch(setToast({ msg, show: true }));
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => dispatch(setToast({ msg, show: false })), 2200);
-};
-
+export const { setSearch, setLibDomain, setLibSub, openDrawer, closeDrawer, setDrawerAsset, setToast } = uiSlice.actions;
 export default uiSlice.reducer;

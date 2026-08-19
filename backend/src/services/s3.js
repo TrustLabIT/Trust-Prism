@@ -1,7 +1,10 @@
 const crypto = require("crypto");
 const zlib = require("zlib");
 const { promisify } = require("util");
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand,
+  CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
+} = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const sharp = require("sharp");
 const { aws } = require("../config/env");
@@ -64,6 +67,23 @@ async function gzipBuffer(buffer) {
   return gzipAsync(buffer, { level: 9 });
 }
 
+// Integrity checksum for a master file — same bytes in, same hash out.
+function sha256(buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+// A small browsing preview for an image master. The MASTER is never touched — this
+// is a separate rendition generated alongside it, purely to make the library fast.
+async function makePreview(buffer) {
+  const image = sharp(buffer, { failOn: "none" }).rotate();
+  const meta = await image.metadata();
+  const out = await image
+    .resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 72 })
+    .toBuffer();
+  return { buffer: out, contentType: "image/webp", ext: "webp", width: meta.width || 0, height: meta.height || 0 };
+}
+
 // opts.contentEncoding → sets S3 Content-Encoding (e.g. "gzip"); browsers/curl(--compressed)
 // transparently decompress on GET, so the stored object is smaller but downloads intact.
 async function putObject(key, buffer, contentType, opts = {}) {
@@ -84,11 +104,39 @@ async function deleteObject(key) {
   await client.send(new DeleteObjectCommand({ Bucket: aws.bucket, Key: key }));
 }
 
-// Temporary link the browser can PUT a file to directly (for large/video uploads)
-async function presignUpload(key, contentType, expiresIn = 900) {
+// Temporary link the browser can PUT a file to directly (single-part, up to 5 GB).
+async function presignUpload(key, contentType, expiresIn = 3600) {
   assertConfigured();
   const cmd = new PutObjectCommand({ Bucket: aws.bucket, Key: key, ContentType: contentType });
   return getSignedUrl(client, cmd, { expiresIn });
+}
+
+/* ---------- Multipart direct-to-S3 upload (for large files, >5 GB up to 5 TB) ----------
+   The browser uploads each part straight to S3 with a presigned URL — the bytes never
+   pass through this server, so there is no memory pressure and no lag. */
+async function createMultipart(key, contentType) {
+  assertConfigured();
+  const out = await client.send(new CreateMultipartUploadCommand({ Bucket: aws.bucket, Key: key, ContentType: contentType }));
+  return out.UploadId;
+}
+async function signPart(key, uploadId, partNumber, expiresIn = 3600) {
+  assertConfigured();
+  const cmd = new UploadPartCommand({ Bucket: aws.bucket, Key: key, UploadId: uploadId, PartNumber: Number(partNumber) });
+  return getSignedUrl(client, cmd, { expiresIn });
+}
+async function completeMultipart(key, uploadId, parts) {
+  assertConfigured();
+  const Parts = parts
+    .map((p) => ({ ETag: p.ETag || p.etag, PartNumber: Number(p.PartNumber || p.partNumber) }))
+    .sort((a, b) => a.PartNumber - b.PartNumber);
+  await client.send(new CompleteMultipartUploadCommand({
+    Bucket: aws.bucket, Key: key, UploadId: uploadId, MultipartUpload: { Parts },
+  }));
+  return key;
+}
+async function abortMultipart(key, uploadId) {
+  assertConfigured();
+  try { await client.send(new AbortMultipartUploadCommand({ Bucket: aws.bucket, Key: key, UploadId: uploadId })); } catch (_) { /* ignore */ }
 }
 
 // Temporary link to view/download a private object.
@@ -109,8 +157,14 @@ module.exports = {
   buildKey,
   compressImage,
   gzipBuffer,
+  sha256,
+  makePreview,
   putObject,
   deleteObject,
   presignUpload,
+  createMultipart,
+  signPart,
+  completeMultipart,
+  abortMultipart,
   presignDownload,
 };

@@ -7,12 +7,12 @@ const { notFound, errorHandler } = require("./middleware/error");
 const healthRouter = require("./routes/health");
 const authRouter = require("./routes/auth");
 const assetsRouter = require("./routes/assets");
-const collectionsRouter = require("./routes/collections");
 const usersRouter = require("./routes/users");
+const taxonomyRouter = require("./routes/taxonomy");
 const sharesRouter = require("./routes/shares");
-const templatesRouter = require("./routes/templates");
-const brandKitRouter = require("./routes/brandkit");
 const publicRouter = require("./routes/public");
+// TrustMark scope: Collections, Templates and Brand Kit are not mounted (dormant on disk).
+// Shared Links (+ its public portal) are kept and adapted to the new asset model.
 
 const app = express();
 
@@ -34,15 +34,13 @@ app.use(morgan("dev"));
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/assets", assetsRouter);
-app.use("/api/collections", collectionsRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/taxonomy", taxonomyRouter);
 app.use("/api/shares", sharesRouter);
-app.use("/api/templates", templatesRouter);
-app.use("/api/brandkit", brandKitRouter);
 app.use("/api/public", publicRouter); // no auth — public share portal
 
 app.get("/", (req, res) => {
-  res.json({ service: "trust-prism-backend", status: "ok" });
+  res.json({ service: "trustmark-backend", status: "ok" });
 });
 
 // 404 + error handling (must be last)

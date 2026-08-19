@@ -3,10 +3,20 @@ const User = require("../models/User");
 const { asyncHandler } = require("../middleware/error");
 const { parsePage, paginate } = require("../utils/paginate");
 
-// GET /api/users?page=&limit=  (Super Admin only)
+// GET /api/users?page=&limit=&q=&type=&scope=&role=&status=  (Super Admin only)
 const list = asyncHandler(async (req, res) => {
-  const { page, limit } = parsePage(req.query);
-  const r = await paginate(User, {}, { page, limit, sort: { createdAt: 1 }, map: (u) => u.toJSON() });
+  const q = req.query;
+  const filter = {};
+  if (q.type && q.type !== "any") filter.type = q.type;      // Internal | External
+  if (q.scope && q.scope !== "any") filter.scope = q.scope;  // own | all
+  if (q.role && q.role !== "any") filter.role = q.role;
+  if (q.status && q.status !== "any") filter.status = q.status;
+  if (q.q) {
+    const rx = new RegExp(String(q.q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ name: rx }, { email: rx }, { org: rx }];
+  }
+  const { page, limit } = parsePage(q);
+  const r = await paginate(User, filter, { page, limit, sort: { createdAt: 1 }, map: (u) => u.toJSON() });
   res.json({ users: r.items, total: r.total, page: r.page, limit: r.limit, hasMore: r.hasMore });
 });
 
