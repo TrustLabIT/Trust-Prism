@@ -17,6 +17,11 @@ const client = s3Configured
   ? new S3Client({
       region: aws.region,
       credentials: { accessKeyId: aws.accessKeyId, secretAccessKey: aws.secretAccessKey },
+      // Newer AWS SDK versions bake a CRC32 checksum (computed on an EMPTY body) into
+      // presigned PUT URLs, which makes browser direct-uploads fail with a checksum
+      // mismatch. Only add checksums when a command actually requires one.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     })
   : null;
 
