@@ -1,12 +1,12 @@
 const Taxonomy = require("../models/Taxonomy");
 const def = require("../config/taxonomy");   // hardcoded defaults (seed + fixed statuses)
 
-let _cache = null, _exp = 0;
-const TTL = 30 * 1000;
-
-// Load the global taxonomy doc, seeding it from defaults the first time. Cached briefly.
-async function load(force = false) {
-  if (!force && _cache && Date.now() < _exp) return _cache;
+// Load the global taxonomy doc, seeding it from defaults the first time.
+// No in-process cache: under pm2 cluster mode a per-process cache lets one
+// worker serve a stale copy after another worker saved an edit (the classic
+// "saved but not showing" bug). The doc is tiny and read rarely, so we always
+// read it fresh from the DB — consistent across every worker, nothing lost.
+async function load(/* force */) {
   let t = await Taxonomy.findOne({ key: "global" });
   if (!t) {
     t = await Taxonomy.create({
@@ -15,10 +15,10 @@ async function load(force = false) {
       services: def.SERVICES, geos: def.GEOS, langs: def.LANGS, specs: def.SPECS,
     });
   }
-  _cache = t; _exp = Date.now() + TTL;
   return t;
 }
-function invalidate() { _cache = null; _exp = 0; }
+// Kept for callers that still invoke it; a no-op now that reads are uncached.
+function invalidate() {}
 
 // The client-facing shape (statuses stay fixed — the lifecycle depends on them).
 function shape(t) {
