@@ -8,18 +8,22 @@ import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import { useApp } from "../context/AppContext";
+import { canLeave } from "../utils/navGuard";
 
 export default function Sidebar() {
   const { counts, libDomain, setLibDomain, perms, tax } = useApp();
-  const nav = useNavigate();
+  const navigate = useNavigate();
   const loc = useLocation();
   const view = loc.pathname.replace("/", "") || "library";
   const onLib = view === "library";
 
+  // Guarded navigation: pages with unsaved changes can block/confirm the move.
+  const nav = async (path) => { if (await canLeave()) navigate(path); };
+
   const domItems = [{ id: "all", name: "All domains", color: "#8FB3A8" }].concat(tax.domains);
   const domCount = (id) => (id === "all" ? counts.total : counts.byDomain?.[id] || 0);
 
-  const goDomain = (id) => { setLibDomain(id); nav("/library"); };
+  const goDomain = async (id) => { if (await canLeave()) { setLibDomain(id); navigate("/library"); } };
 
   return (
     <aside className="sidebar">
