@@ -34,7 +34,10 @@ export default function Expired() {
       setDates((prev) => { const d = { ...prev }; (r.assets || []).forEach((a) => { if (!d[a.id]) d[a.id] = plusOneYear(); }); return d; });
     } catch (e) { toast(e.message || "Could not load"); }
     finally { setLoading(false); }
-  }, [dq, domain, toast]);
+    // toast is a fresh reference every render; including it here would make
+    // `load` change every render and the [load] effect below loop forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dq, domain]);
 
   useEffect(() => { load(1, false); }, [load]);
   const loadMore = () => load(page + 1, true);
