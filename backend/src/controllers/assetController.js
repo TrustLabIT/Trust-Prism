@@ -11,9 +11,16 @@ const LIBRARY_STATUSES = ["Approved", "Live"];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const notExpiredOr = (today) => ({ $or: [{ expiry: null }, { expiry: { $gte: today } }] });
 
-// scope: "all" sees everything; otherwise only their org's work
+// Visibility rules:
+//  • Super Admin (or anyone granted "all" scope) sees everything — including
+//    external uploads, so they can review and approve them.
+//  • External users see ONLY the assets they uploaded (their own work) — never
+//    the internal organisation's library or other users' assets.
+//  • Internal users see their organisation's shared library.
 function accessFilter(user) {
-  return user.scope === "all" ? {} : { org: user.org };
+  if (user.role === "Super Admin" || user.scope === "all") return {};
+  if (user.type === "External") return { owner: user.id };
+  return { org: user.org };
 }
 
 // frontend shape (no S3 keys leaked)
