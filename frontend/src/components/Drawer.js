@@ -58,6 +58,12 @@ export default function Drawer() {
   (a.comments || []).forEach((c) => grp(c.version || 1).comments.push(c));
   const versionGroups = [...groupsMap.values()].sort((x, y) => y.version - x.version);
 
+  // the live/current file = highest version, then highest revision (mirrors `master`)
+  const cur = (a.versions || []).reduce((best, v) =>
+    (!best || v.version > best.version || (v.version === best.version && v.revision > best.revision)) ? v : best, null);
+  const curKey = cur ? cur.version + "-" + cur.revision : null;
+  const curLabel = a.status === "Live" ? "Published" : a.status === "Approved" ? "Approved" : "Current";
+
   const isOwner = user.id && a.owner && String(user.id) === String(a.owner);
   const released = !["Draft", "In review"].includes(a.status);   // approved and beyond
   const canDelete = perms.isSuperAdmin || (isOwner && !released); // once approved, admin only
@@ -150,22 +156,26 @@ export default function Drawer() {
                   <button className="dvg-h" onClick={() => setOpenV(openV === g.version ? null : g.version)}>
                     <span className="dvn">v{g.version}</span>
                     <span className="dvg-title">Version {g.version}</span>
+                    {cur && g.version === cur.version && <span className={"pubtag" + (a.status === "Live" ? " live" : "")}>{curLabel}</span>}
                     <span className="dvg-meta">{g.files.length} file{g.files.length !== 1 ? "s" : ""}{g.comments.length ? ` · ${g.comments.length} comment${g.comments.length !== 1 ? "s" : ""}` : ""}</span>
                     <span className="dvg-caret">{openV === g.version ? "▾" : "▸"}</span>
                   </button>
                   {openV === g.version && (
                     <div className="dvg-body">
-                      {g.files.slice().sort((x, y) => y.revision - x.revision).map((v) => (
-                        <div className="dver" key={v.revision}>
-                          <span className="dvn sm">r{v.revision}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="fn" style={{ fontSize: 12.5 }}>{v.fname}</div>
-                            <div className="sp">{(v.ext || "").toUpperCase()} · {fmtBytes(v.size)} · {v.by} · {when(v.at)}</div>
-                            {v.note && <div className="dvnote">“{v.note}”</div>}
+                      {g.files.slice().sort((x, y) => y.revision - x.revision).map((v) => {
+                        const isCur = curKey === v.version + "-" + v.revision;
+                        return (
+                          <div className={"dver" + (isCur ? " cur" : "")} key={v.revision}>
+                            <span className="dvn sm">r{v.revision}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="fn" style={{ fontSize: 12.5 }}>{v.fname}{isCur && <span className={"pubtag" + (a.status === "Live" ? " live" : "")}>{curLabel}</span>}</div>
+                              <div className="sp">{(v.ext || "").toUpperCase()} · {fmtBytes(v.size)} · {v.by} · {when(v.at)}</div>
+                              {v.note && <div className="dvnote">“{v.note}”</div>}
+                            </div>
+                            <button className="btn sm" onClick={() => dlVersion(v)} title="Download this file">↓</button>
                           </div>
-                          <button className="btn sm" onClick={() => dlVersion(v)} title="Download this file">↓</button>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {g.comments.length > 0 && (
                         <div className="dvg-conv">
                           {g.comments.map((c) => (
