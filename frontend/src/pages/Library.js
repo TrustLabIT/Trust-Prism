@@ -183,7 +183,7 @@ export default function Library() {
                   <div><div style={{ fontWeight: 640 }}>{a.name}</div><div className="pathcell">{a.type}{a.w ? ` · ${a.w}×${a.h}` : ""}</div></div>
                 </div></td>
                 <td className="pathcell">{dom(a.domain)?.name} › {subOf(a.domain, a.sub)?.name}</td>
-                <td>{a.channel}</td>
+                <td>{a.channel || "—"}</td>
                 <td><span className={stClass(a.status)}>{a.status}</span></td>
                 <td>{a.dist}</td>
                 <td className="pathcell">{a.master ? `${a.master.ext} · ${fmtBytes(a.master.size)}` : "—"}</td>

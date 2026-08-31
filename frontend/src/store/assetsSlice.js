@@ -24,6 +24,26 @@ export const fetchApprovals = createAsyncThunk("assets/approvals", async ({ from
   return api.get("/assets/approvals" + (qs ? "?" + qs : ""));
 });
 
+// Versions tracker (Draft assets being revised before approval)
+export const fetchVersions = createAsyncThunk("assets/versions", async ({ params = {}, append = false } = {}) => {
+  const qs = buildQS(params);
+  const res = await api.get("/assets/versions" + (qs ? "?" + qs : ""));
+  return { ...res, append };
+});
+export const fetchPublished = createAsyncThunk("assets/published", async ({ params = {}, append = false } = {}) => {
+  const qs = buildQS(params);
+  const res = await api.get("/assets/published" + (qs ? "?" + qs : ""));
+  return { ...res, append };
+});
+export const addComment = createAsyncThunk("assets/comment", async ({ id, text }) => {
+  const { asset } = await api.post(`/assets/${id}/comment`, { text });
+  return asset;
+});
+export const addVersion = createAsyncThunk("assets/addVersion", async ({ id, master, previewKey, note }) => {
+  const { asset } = await api.post(`/assets/${id}/version`, { master, previewKey, note });
+  return asset;
+});
+
 export const confirmUpload = createAsyncThunk("assets/confirm", async (payload) => {
   const { asset } = await api.post("/assets/confirm", payload);
   return asset;
@@ -59,6 +79,8 @@ const assetsSlice = createSlice({
     items: [], page: 1, hasMore: false, total: 0, status: "idle", lastKey: null,
     counts: { total: 0, byDomain: {}, bySub: {}, inReview: 0 },
     approvals: { review: [], drafts: [], approvedDemand: [], flags: [], counts: { review: 0, drafts: 0, approvedDemand: 0, flags: 0 }, hasMore: false }, approvalsStatus: "idle",
+    versions: { items: [], page: 1, hasMore: false, total: 0, status: "idle" },
+    published: { items: [], page: 1, hasMore: false, total: 0, status: "idle", facets: { months: [], owners: [] } },
   },
   reducers: {},
   extraReducers: (b) => {
@@ -75,8 +97,31 @@ const assetsSlice = createSlice({
     b.addCase(fetchApprovals.pending, (s) => { s.approvalsStatus = "loading"; });
     b.addCase(fetchApprovals.fulfilled, (s, a) => { s.approvalsStatus = "idle"; s.approvals = a.payload; });
 
+    b.addCase(fetchVersions.pending, (s) => { s.versions.status = "loading"; });
+    b.addCase(fetchVersions.fulfilled, (s, a) => {
+      s.versions.status = "idle";
+      s.versions.items = a.payload.append ? [...s.versions.items, ...a.payload.assets] : a.payload.assets;
+      s.versions.page = a.payload.page; s.versions.hasMore = a.payload.hasMore; s.versions.total = a.payload.total;
+    });
+    b.addCase(fetchVersions.rejected, (s) => { s.versions.status = "failed"; });
+    b.addCase(addComment.fulfilled, (s, a) => { replaceIn(s.versions.items, a.payload); });
+    b.addCase(addVersion.fulfilled, (s, a) => { replaceIn(s.versions.items, a.payload); });
+
+    b.addCase(fetchPublished.pending, (s) => { s.published.status = "loading"; });
+    b.addCase(fetchPublished.fulfilled, (s, a) => {
+      s.published.status = "idle";
+      s.published.items = a.payload.append ? [...s.published.items, ...a.payload.assets] : a.payload.assets;
+      s.published.page = a.payload.page; s.published.hasMore = a.payload.hasMore; s.published.total = a.payload.total;
+      if (a.payload.facets) s.published.facets = a.payload.facets;
+    });
+    b.addCase(fetchPublished.rejected, (s) => { s.published.status = "failed"; });
+
     b.addCase(confirmUpload.fulfilled, (s, a) => { s.items.unshift(a.payload); s.total += 1; });
-    b.addCase(updateStatus.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
+    b.addCase(updateStatus.fulfilled, (s, a) => {
+      replaceIn(s.items, a.payload);
+      // once sent for approval (no longer Draft), drop it from the Versions tracker
+      if (a.payload.status !== "Draft") s.versions.items = s.versions.items.filter((x) => x.id !== a.payload.id);
+    });
     b.addCase(updateAsset.fulfilled, (s, a) => { replaceIn(s.items, a.payload); });
     b.addCase(deleteAsset.fulfilled, (s, a) => { s.items = s.items.filter((x) => x.id !== a.payload); });
   },

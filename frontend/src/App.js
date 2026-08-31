@@ -7,6 +7,8 @@ import Login from "./pages/Login";
 import Library from "./pages/Library";
 import Approvals from "./pages/Approvals";
 import Upload from "./pages/Upload";
+import Versions from "./pages/Versions";
+import Published from "./pages/Published";
 import TaxonomyModel from "./pages/TaxonomyModel";
 import Expired from "./pages/Expired";
 import Shares from "./pages/Shares";
@@ -38,6 +40,8 @@ export default function App() {
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/shares" element={<Shares />} />
         <Route path="/upload" element={<Upload />} />
+        <Route path="/versions" element={<Versions />} />
+        <Route path="/published" element={<Published />} />
         <Route path="/expired" element={<Expired />} />
         <Route path="/users" element={<Users />} />
         <Route path="/settings" element={<Settings />} />

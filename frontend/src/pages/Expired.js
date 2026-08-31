@@ -8,7 +8,7 @@ import { confirmDialog } from "../components/Dialogs";
 const plusOneYear = () => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 10); };
 
 export default function Expired() {
-  const { updateAsset, deleteAsset, openDrawer, fetchCounts, toast, tax } = useApp();
+  const { updateAsset, deleteAsset, openDrawer, fetchCounts, toast, tax, perms } = useApp();
   const { pathOf } = tax;
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +94,7 @@ export default function Expired() {
                   style={{ padding: "6px 9px", border: "1px solid var(--line)", borderRadius: 8, fontSize: 13 }} />
                 <button className="btn sm p" onClick={() => renew(a)}>Renew</button>
                 <button className="btn sm" onClick={() => openDrawer(a)}>Open</button>
-                <button className="btn sm dgr" onClick={() => del(a)}>Delete</button>
+                {perms.isSuperAdmin && <button className="btn sm dgr" onClick={() => del(a)}>Delete</button>}
               </div>
             </div>
           );

@@ -26,7 +26,7 @@ export default function Approvals() {
   };
   const loadMore = () => { const n = limit + 20; setLimit(n); reload(n); };
 
-  const { review = [], drafts = [], approvedDemand = [], flags = [], counts = {}, hasMore = false } = approvals;
+  const { review = [], approvedDemand = [], flags = [], counts = {}, hasMore = false } = approvals;
   const fySel = fyMatch(range);
   const fyYears = [fyNowYr(), fyNowYr() - 1, fyNowYr() - 2];
 
@@ -80,16 +80,6 @@ export default function Approvals() {
             <button className="btn sm" onClick={() => openDrawer(a)}>Open</button>
           </Row>
         )) : <div className="empty">Nothing approved and unpublished.</div>}
-      </div>
-
-      <div className="sect">
-        <h3>Drafts — {counts.drafts ?? drafts.length}</h3>
-        {drafts.length ? drafts.map((a) => (
-          <Row a={a} key={a.id}>
-            <button className="btn sm" onClick={() => act(a.id, "submit", "Submitted for review")}>Submit for review</button>
-            <button className="btn sm" onClick={() => openDrawer(a)}>Open</button>
-          </Row>
-        )) : <div className="empty">No drafts.</div>}
       </div>
 
       <div className="sect">

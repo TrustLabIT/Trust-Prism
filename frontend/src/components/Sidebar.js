@@ -2,7 +2,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import PhotoLibraryOutlinedIcon from "@mui/icons-material/PhotoLibraryOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
 import UploadOutlinedIcon from "@mui/icons-material/UploadOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
@@ -54,6 +56,9 @@ export default function Sidebar() {
         <button className={"nav" + (view === "shares" ? " on" : "")} onClick={() => nav("/shares")}>
           <span className="ic"><LinkOutlinedIcon sx={{ fontSize: 17 }} /></span> Shared Links
         </button>
+        <button className={"nav" + (view === "published" ? " on" : "")} onClick={() => nav("/published")}>
+          <span className="ic"><RocketLaunchOutlinedIcon sx={{ fontSize: 17 }} /></span> Published
+        </button>
       </div>
 
       {perms.canUpload && (
@@ -61,6 +66,10 @@ export default function Sidebar() {
           <div className="lbl">Create</div>
           <button className={"nav" + (view === "upload" ? " on" : "")} onClick={() => nav("/upload")}>
             <span className="ic"><UploadOutlinedIcon sx={{ fontSize: 17 }} /></span> New Asset
+          </button>
+          <button className={"nav" + (view === "versions" ? " on" : "")} onClick={() => nav("/versions")}>
+            <span className="ic"><HistoryOutlinedIcon sx={{ fontSize: 17 }} /></span> Version Tracker
+            {counts.drafts > 0 && <span className="ct">{counts.drafts}</span>}
           </button>
         </div>
       )}

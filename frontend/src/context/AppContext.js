@@ -5,6 +5,8 @@ import {
   fetchApprovals as fetchApprovalsThunk, confirmUpload as confirmUploadThunk,
   updateStatus as updateStatusThunk, updateAsset as updateAssetThunk,
   deleteAsset as deleteAssetThunk, downloadAsset as downloadAssetThunk,
+  fetchVersions as fetchVersionsThunk, addComment as addCommentThunk, addVersion as addVersionThunk,
+  fetchPublished as fetchPublishedThunk,
 } from "../store/assetsSlice";
 import {
   setSearch, setLibDomain, setLibSub, openDrawer, closeDrawer, setToast,
@@ -17,7 +19,7 @@ import {
 import { fetchTaxonomy as fetchTaxonomyThunk, saveTaxonomy as saveTaxonomyThunk } from "../store/taxonomySlice";
 import { login as loginThunk, logout as logoutAction } from "../store/authSlice";
 
-const APPROVER_ROLES = ["Super Admin", "Brand Manager", "Reviewer"];
+const APPROVER_ROLES = ["Super Admin"]; // only the admin approves/rejects/publishes
 const LIBRARY_STATUS_FILTER = ["Live", "Approved", "Archived"];   // Draft/In review/Expired have their own places
 
 const GUEST = { name: "", role: "", org: "Internal", scope: "all" };
@@ -36,6 +38,8 @@ export function useApp() {
   const counts = useSelector((s) => s.assets.counts);
   const approvals = useSelector((s) => s.assets.approvals);
   const approvalsStatus = useSelector((s) => s.assets.approvalsStatus);
+  const versions = useSelector((s) => s.assets.versions);
+  const published = useSelector((s) => s.assets.published);
 
   const shares = useSelector((s) => s.shares.items);
   const sharesPage = useSelector((s) => s.shares.page);
@@ -90,7 +94,7 @@ export function useApp() {
 
   return {
     user, authStatus, perms, tax,
-    assets, assetsStatus, hasMore, page, total, lastKey, counts, approvals, approvalsStatus,
+    assets, assetsStatus, hasMore, page, total, lastKey, counts, approvals, approvalsStatus, versions, published,
     shares, sharesPage, sharesHasMore, sharesTotal, sharesStatus, users, usersPage, usersHasMore, usersTotal, usersStatus, search, libDomain, libSub, drawer,
 
     // data
@@ -98,6 +102,10 @@ export function useApp() {
     fetchCounts: () => dispatch(fetchCountsThunk()),
     fetchApprovals: (r) => dispatch(fetchApprovalsThunk(r)),
     confirmUpload: (payload) => dispatch(confirmUploadThunk(payload)).unwrap(),
+    fetchVersions: (opts) => dispatch(fetchVersionsThunk(opts)),
+    fetchPublished: (opts) => dispatch(fetchPublishedThunk(opts)),
+    addComment: (id, text) => dispatch(addCommentThunk({ id, text })).unwrap(),
+    addVersion: (id, master, previewKey, note) => dispatch(addVersionThunk({ id, master, previewKey, note })).unwrap(),
     updateStatus: (id, action) => dispatch(updateStatusThunk({ id, action })).unwrap(),
     updateAsset: (id, patch) => dispatch(updateAssetThunk({ id, patch })).unwrap(),
     deleteAsset: (id) => dispatch(deleteAssetThunk(id)).unwrap(),

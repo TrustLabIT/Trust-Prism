@@ -4,7 +4,7 @@ const { asyncHandler } = require("../middleware/error");
 const { parsePage, paginate } = require("../utils/paginate");
 const tax = require("../services/taxonomy");   // live, editable taxonomy (DB-backed)
 
-const APPROVER = ["Super Admin", "Brand Manager", "Reviewer"];
+const APPROVER = ["Super Admin"]; // only the admin approves/rejects/publishes
 // Library shows active assets only. Draft/In review live in Approvals; anything past its
 // expiry date is moved to the Expired section (by date — no record is ever deleted).
 const LIBRARY_STATUSES = ["Approved", "Live"];
@@ -31,7 +31,8 @@ function card(a) {
     domain: a.domain, sub: a.sub, type: a.type,
     channel: a.channel, status: a.status, dist: a.dist,
     audience: a.audience, campaign: a.campaign, service: a.service,
-    geo: a.geo, lang: a.lang, spec: a.spec, version: a.version,
+    geo: a.geo, lang: a.lang, spec: a.spec,
+    version: typeof a.version === "number" ? a.version : (parseInt(String(a.version).replace(/\D/g, ""), 10) || 1),
     date: a.date, expiry: a.expiry || null,
     by: a.by, org: a.org, owner: a.owner ? String(a.owner) : null,
     thumb: a.thumb || "",
@@ -41,6 +42,14 @@ function card(a) {
       fname: a.master.fname, mime: a.master.mime, ext: a.master.ext,
       size: a.master.size, sha256: a.master.sha256, w: a.master.w, h: a.master.h,
     } : null,
+    versions: (a.versions || []).map((v) => ({
+      version: v.version || 1, revision: v.revision || 1,
+      fname: v.fname, mime: v.mime, ext: v.ext,
+      size: v.size, sha256: v.sha256, w: v.w, h: v.h, by: v.by, note: v.note || "", at: v.at,
+    })),
+    comments: (a.comments || []).map((c) => ({
+      id: String(c._id), version: c.version || 1, by: c.by ? String(c.by) : null, byName: c.byName || "", text: c.text, at: c.at,
+    })),
     createdAt: a.createdAt,
   };
 }
@@ -50,6 +59,15 @@ async function withUrls(a) {
   const c = card(a);
   const key = a.previewS3Key || (a.master && (a.master.mime || "").startsWith("image/") ? a.master.s3Key : null);
   c.preview = key ? await s3.presignDownload(key, 6 * 3600).catch(() => null) : null;
+  // video/audio masters get an inline, streamable URL so they can be played in-app
+  const mime = (a.master && a.master.mime) || "";
+  if (a.master && (mime.startsWith("video/") || mime.startsWith("audio/"))) {
+    c.media = await s3.presignDownload(a.master.s3Key, 6 * 3600).catch(() => null);
+  }
+  // image masters get a full-resolution inline URL for the lightbox (preview stays the smaller rendition)
+  if (a.master && mime.startsWith("image/")) {
+    c.image = await s3.presignDownload(a.master.s3Key, 6 * 3600).catch(() => null);
+  }
   return c;
 }
 
@@ -107,11 +125,12 @@ const counts = asyncHandler(async (req, res) => {
     const k = a.domain + "/" + a.sub;
     bySub[k] = (bySub[k] || 0) + 1;
   });
-  const [inReview, expired] = await Promise.all([
+  const [inReview, expired, drafts] = await Promise.all([
     Asset.countDocuments({ ...base, status: "In review", domain: { $in: DOMAIN_IDS } }),
     Asset.countDocuments({ ...base, domain: { $in: DOMAIN_IDS }, status: { $ne: "Archived" }, expiry: { $ne: null, $lt: today } }),
+    Asset.countDocuments({ ...base, status: "Draft", domain: { $in: DOMAIN_IDS } }),  // Versions tracker
   ]);
-  res.json({ total: all.length, byDomain, bySub, inReview, expired });
+  res.json({ total: all.length, byDomain, bySub, inReview, expired, drafts });
 });
 
 // POST /api/assets  (multipart: file + fields) — store master byte-for-byte + a preview
@@ -142,16 +161,19 @@ const create = asyncHandler(async (req, res) => {
     } catch (_) { /* preview is best-effort; master is what matters */ }
   }
 
+  const masterObj = { fname: originalname, mime: mimetype || "application/octet-stream", ext, size: buffer.length, sha256: sha, w, h, s3Key: masterKey };
   const asset = await Asset.create({
     name: b.name.trim(), domain: b.domain, sub: b.sub, type: b.type,
-    channel: b.channel || "Digital", status: "In review", dist: b.dist,
+    channel: b.channel || (b.domain === "demand" ? "" : "Digital"), status: "Draft", dist: b.dist,
     audience: b.audience || "Consumer", campaign: b.campaign || "Always-on",
     service: b.service || "General", geo: b.geo || "All centres",
     lang: b.lang || "English", spec: b.spec || "RGB",
     date: b.date || new Date().toISOString().slice(0, 10),
     expiry: b.expiry || null,
-    master: { fname: originalname, mime: mimetype || "application/octet-stream", ext, size: buffer.length, sha256: sha, w, h, s3Key: masterKey },
+    master: masterObj,
     previewS3Key: previewKey,
+    version: 1,
+    versions: [{ version: 1, revision: 1, ...masterObj, previewS3Key: previewKey, by: req.user.name, note: b.note || "", at: new Date() }],
     thumb: b.thumb || "",
     by: req.user.name, owner: req.user.id, org: req.user.org,
   });
@@ -175,7 +197,8 @@ const downloadUrl = asyncHandler(async (req, res) => {
 });
 
 // PATCH /api/assets/:id/status  { action }  — lifecycle transitions
-const TRANSITIONS = { submit: "In review", approve: "Approved", reject: "Draft", publish: "Live", archive: "Archived", renew: "In review" };
+// "revise" = Add changes: an approved/live asset re-enters the Version Tracker as the NEXT version.
+const TRANSITIONS = { submit: "In review", approve: "Approved", reject: "Draft", publish: "Live", archive: "Archived", renew: "In review", revise: "Draft" };
 const updateStatus = asyncHandler(async (req, res) => {
   const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
   if (!a) return res.status(404).json({ error: "Asset not found" });
@@ -184,12 +207,19 @@ const updateStatus = asyncHandler(async (req, res) => {
   if (!next) return res.status(400).json({ error: "Unknown action" });
   const isApprover = APPROVER.includes(req.user.role);
   const isOwner = String(a.owner) === String(req.user.id);
-  if (["approve", "reject", "publish"].includes(action) && !isApprover)
-    return res.status(403).json({ error: "Only a Reviewer, Brand Manager or Super Admin can do that" });
+  if (["submit", "approve", "reject", "publish"].includes(action) && !isApprover)
+    return res.status(403).json({ error: "Only a Super Admin can move this to approval, approve, send back or publish" });
   if (!isApprover && !isOwner)
     return res.status(403).json({ error: "Not allowed to change this asset" });
   if (action === "publish" && a.domain !== "demand")
     return res.status(400).json({ error: "Only Demand Generation assets go Live — Approved is the terminal state here" });
+  if (action === "revise") {
+    if (!["Approved", "Live"].includes(a.status))
+      return res.status(400).json({ error: "Only an approved asset can be revised into a new version" });
+    const cur = typeof a.version === "number" ? a.version : (parseInt(String(a.version).replace(/\D/g, ""), 10) || 1);
+    a.version = cur + 1;   // start the next version cycle
+  }
+  if (action === "publish") a.publishedAt = new Date();   // stamp the publish time for the Published page
   a.status = next;
   await a.save();
   res.json({ asset: await withUrls(a) });
@@ -282,13 +312,22 @@ const expired = asyncHandler(async (req, res) => {
 });
 
 // DELETE /api/assets/:id
+// Once an asset is approved (i.e. past Draft/In review), ONLY a Super Admin may delete it.
+// While still a Draft / In review, the owner may delete their own.
 const remove = asyncHandler(async (req, res) => {
   const a = await Asset.findById(req.params.id);
   if (!a) return res.status(404).json({ error: "Asset not found" });
+  const isSuper = req.user.role === "Super Admin";
   const isOwner = String(a.owner) === String(req.user.id);
-  if (!isOwner && req.user.role !== "Super Admin") return res.status(403).json({ error: "Not allowed to delete this asset" });
-  try { if (a.master) await s3.deleteObject(a.master.s3Key); } catch (_) {}
-  try { if (a.previewS3Key) await s3.deleteObject(a.previewS3Key); } catch (_) {}
+  const released = !["Draft", "In review"].includes(a.status);
+  if (!isSuper && (released || !isOwner))
+    return res.status(403).json({ error: released ? "Only a Super Admin can delete an approved asset" : "Not allowed to delete this asset" });
+  // remove the master, preview, and every stored version/revision file from S3
+  const keys = new Set();
+  if (a.master) keys.add(a.master.s3Key);
+  if (a.previewS3Key) keys.add(a.previewS3Key);
+  (a.versions || []).forEach((v) => { if (v.s3Key) keys.add(v.s3Key); if (v.previewS3Key) keys.add(v.previewS3Key); });
+  for (const k of keys) { try { await s3.deleteObject(k); } catch (_) {} }
   await a.deleteOne();
   res.json({ ok: true, id: req.params.id });
 });
@@ -357,25 +396,143 @@ const confirm = asyncHandler(async (req, res) => {
   const m = b.master || {};
   const key = m.key || m.s3Key;
   if (!key) return res.status(400).json({ error: "Master key is required — upload the file first" });
+  const masterObj = {
+    fname: m.fname, mime: m.mime || "application/octet-stream", ext: (m.ext || "FILE").toUpperCase(),
+    size: Number(m.size) || 0, sha256: m.sha256 || "", w: Number(m.w) || 0, h: Number(m.h) || 0, s3Key: key,
+  };
   const asset = await Asset.create({
     name: b.name.trim(), domain: b.domain, sub: b.sub, type: b.type,
-    channel: b.channel || "Digital", status: "In review", dist: b.dist,
+    channel: b.channel || (b.domain === "demand" ? "" : "Digital"), status: "Draft", dist: b.dist,
     audience: b.audience || "Consumer", campaign: b.campaign || "Always-on",
     service: b.service || "General", geo: b.geo || "All centres",
     lang: b.lang || "English", spec: b.spec || "RGB",
     date: b.date || new Date().toISOString().slice(0, 10), expiry: b.expiry || null,
-    master: {
-      fname: m.fname, mime: m.mime || "application/octet-stream", ext: (m.ext || "FILE").toUpperCase(),
-      size: Number(m.size) || 0, sha256: m.sha256 || "", w: Number(m.w) || 0, h: Number(m.h) || 0, s3Key: key,
-    },
+    master: masterObj,
     previewS3Key: b.previewKey || null,
+    version: 1,
+    versions: [{ version: 1, revision: 1, ...masterObj, previewS3Key: b.previewKey || null, by: req.user.name, note: b.note || "", at: new Date() }],
     thumb: b.thumb || "",
     by: req.user.name, owner: req.user.id, org: req.user.org,
   });
   res.status(201).json({ asset: await withUrls(asset) });
 });
 
+// GET /api/assets/published?month=YYYY-MM&user=<ownerId>&q=&page=&limit=
+// Everything that has gone Live (been published), with month + uploader filters.
+const published = asyncHandler(async (req, res) => {
+  const q = req.query;
+  const base = { ...accessFilter(req.user), status: "Live", domain: { $in: await tax.domainIds() } };
+
+  // facets for the filter dropdowns (from the full Live set the user can see)
+  const live = await Asset.find(base, { owner: 1, by: 1, publishedAt: 1, createdAt: 1 }).lean();
+  const ownerMap = new Map();
+  const monthSet = new Set();
+  live.forEach((a) => {
+    if (a.owner) ownerMap.set(String(a.owner), a.by || "—");
+    const d = a.publishedAt || a.createdAt;
+    if (d) monthSet.add(new Date(d).toISOString().slice(0, 7));
+  });
+  const owners = [...ownerMap].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+  const months = [...monthSet].sort().reverse();
+
+  // apply the filters to the paginated list
+  const filter = { ...base };
+  if (q.user && q.user !== "any") filter.owner = q.user;
+  if (q.from || q.to) {
+    const range = {};
+    if (q.from) range.$gte = new Date(q.from + "T00:00:00.000Z");
+    if (q.to) range.$lte = new Date(q.to + "T23:59:59.999Z");
+    filter.$or = [
+      { publishedAt: range },
+      { publishedAt: null, createdAt: range },
+    ];
+  } else if (q.month && q.month !== "any") {
+    const start = new Date(q.month + "-01T00:00:00.000Z");
+    const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1);
+    filter.$or = [
+      { publishedAt: { $gte: start, $lt: end } },
+      { publishedAt: null, createdAt: { $gte: start, $lt: end } },
+    ];
+  }
+  if (q.q) {
+    const rx = new RegExp(String(q.q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$and = [{ $or: [{ name: rx }, { type: rx }, { campaign: rx }] }];
+  }
+
+  const { page, limit } = parsePage(q);
+  const r = await paginate(Asset, filter, { page, limit, sort: { publishedAt: -1, createdAt: -1 }, map: withUrls });
+  res.json({ assets: r.items, total: r.total, page: r.page, limit: r.limit, hasMore: r.hasMore, facets: { months, owners } });
+});
+
+// GET /api/assets/versions  — the Versions tracker: uploaded assets still in Draft,
+// being revised (comments + new file versions) before they're sent for approval.
+const versionsList = asyncHandler(async (req, res) => {
+  const q = req.query;
+  const filter = { ...accessFilter(req.user), status: "Draft", domain: { $in: await tax.domainIds() } };
+  if (q.domain && q.domain !== "all") filter.domain = q.domain;
+  if (q.q) {
+    const rx = new RegExp(String(q.q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ name: rx }, { type: rx }, { campaign: rx }];
+  }
+  const { page, limit } = parsePage(q);
+  const r = await paginate(Asset, filter, { page, limit, sort: { updatedAt: -1 }, map: withUrls });
+  res.json({ assets: r.items, total: r.total, page: r.page, limit: r.limit, hasMore: r.hasMore });
+});
+
+// POST /api/assets/:id/comment  { text }  — leave feedback on a Draft asset
+const addComment = asyncHandler(async (req, res) => {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const text = String(req.body.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Comment can't be empty" });
+  const cycle = typeof a.version === "number" ? a.version : (parseInt(String(a.version).replace(/\D/g, ""), 10) || 1);
+  a.comments.push({ version: cycle, by: req.user.id, byName: req.user.name, text, at: new Date() });
+  await a.save();
+  res.status(201).json({ asset: await withUrls(a) });
+});
+
+// POST /api/assets/:id/version  { master:{...}, previewKey, note }  — add a new file version
+const addVersion = asyncHandler(async (req, res) => {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const isOwner = String(a.owner) === String(req.user.id);
+  if (!isOwner && req.user.role !== "Super Admin")
+    return res.status(403).json({ error: "Only the owner or a Super Admin can add a version" });
+  const m = req.body.master || {};
+  const key = m.key || m.s3Key;
+  if (!key) return res.status(400).json({ error: "Master key is required — upload the file first" });
+  // a new file = the next REVISION within the CURRENT version cycle (version number unchanged)
+  const cycle = typeof a.version === "number" ? a.version : (parseInt(String(a.version).replace(/\D/g, ""), 10) || 1);
+  const inCycle = (a.versions || []).filter((v) => (v.version || 1) === cycle);
+  const revision = (inCycle.length ? Math.max(...inCycle.map((v) => v.revision || 1)) : 0) + 1;
+  const ver = {
+    version: cycle, revision,
+    fname: m.fname, mime: m.mime || "application/octet-stream", ext: (m.ext || "FILE").toUpperCase(),
+    size: Number(m.size) || 0, sha256: m.sha256 || "", w: Number(m.w) || 0, h: Number(m.h) || 0,
+    s3Key: key, previewS3Key: req.body.previewKey || null,
+    by: req.user.name, note: String(req.body.note || "").trim(), at: new Date(),
+  };
+  a.versions.push(ver);
+  // the newest file becomes the current master + preview
+  a.master = { fname: ver.fname, mime: ver.mime, ext: ver.ext, size: ver.size, sha256: ver.sha256, w: ver.w, h: ver.h, s3Key: ver.s3Key };
+  a.previewS3Key = ver.previewS3Key;
+  await a.save();
+  res.status(201).json({ asset: await withUrls(a) });
+});
+
+// GET /api/assets/:id/file-url?version=&revision=  — presigned download URL for one file in the history
+const versionUrl = asyncHandler(async (req, res) => {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const ver = Number(req.query.version), rev = Number(req.query.revision);
+  const v = (a.versions || []).find((x) => (x.version || 1) === ver && (x.revision || 1) === rev);
+  if (!v) return res.status(404).json({ error: "File not found" });
+  const url = await s3.presignDownload(v.s3Key, 900, { download: true, filename: v.fname });
+  res.json({ url });
+});
+
 module.exports = {
   list, counts, create, getOne, downloadUrl, updateStatus, update, approvals, expired, remove,
   presign, signPart, completeUpload, abortUpload, presignPreview, confirm,
+  versionsList, published, addComment, addVersion, versionUrl,
 };

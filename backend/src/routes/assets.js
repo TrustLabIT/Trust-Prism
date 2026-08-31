@@ -16,6 +16,8 @@ router.get("/", ctrl.list);
 router.get("/counts", ctrl.counts);
 router.get("/approvals", ctrl.approvals);
 router.get("/expired", ctrl.expired);
+router.get("/versions", ctrl.versionsList);   // the Versions tracker (Draft assets)
+router.get("/published", ctrl.published);     // published (Live) assets, with month + user filters
 
 // upload — small (server-side preview) path
 router.post("/", smallUpload.single("file"), ctrl.create);
@@ -30,6 +32,9 @@ router.post("/confirm", ctrl.confirm);
 
 router.get("/:id", ctrl.getOne);
 router.get("/:id/url", ctrl.downloadUrl);
+router.get("/:id/file-url", ctrl.versionUrl);          // download a specific version/revision file
+router.post("/:id/version", ctrl.addVersion);          // add a new revision (file change)
+router.post("/:id/comment", ctrl.addComment);          // leave feedback
 router.patch("/:id", ctrl.update);
 router.patch("/:id/status", ctrl.updateStatus);
 router.delete("/:id", ctrl.remove);

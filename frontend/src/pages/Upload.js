@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { todayISO, fmtBytes, fmtDate } from "../utils/tm";
-import { uploadMaster, uploadPreview, makeImagePreview, imageDims, sha256OfFile } from "../api/upload";
+import { uploadMaster, uploadPreview, makePreview, imageDims, sha256OfFile } from "../api/upload";
 import { guessThumb } from "../utils/thumbs";
 
 const blank = () => ({
@@ -39,7 +39,7 @@ export default function Upload() {
       const dims = await imageDims(f);
       const key = await uploadMaster(f, (p) => set({ progress: p }));
       let previewKey = null;
-      const blob = await makeImagePreview(f);
+      const blob = await makePreview(f);
       if (blob) previewKey = await uploadPreview(blob, f.name + ".webp");
       const sha = await sha256OfFile(f);
       const ext = (f.name.includes(".") ? f.name.split(".").pop() : "FILE").toUpperCase();
@@ -64,7 +64,7 @@ export default function Upload() {
     if (s === 2) {
       if (!W.sub) return set({ err: "Choose a sub-module." });
       if (!W.type) return set({ err: "Choose an asset type." });
-      if (!W.channel) return set({ err: "Choose a channel." });
+      if (W.domain !== "demand" && !W.channel) return set({ err: "Choose a channel." });
       return set({ err: "", step: 3 });
     }
     if (s === 3) {
@@ -89,8 +89,8 @@ export default function Upload() {
         master: W.master, previewKey: W.previewKey, thumb: guessThumb(W.type, W.channel),
       });
       fetchCounts();
-      toast("Submitted for review — it is in the Approvals queue");
-      nav("/approvals");
+      toast("Uploaded — it's in the Version Tracker");
+      nav("/versions");
     } catch (e) { set({ err: e.message || "Could not submit" }); }
   };
 
@@ -137,7 +137,7 @@ export default function Upload() {
               <div className="pick">{D?.subs.map((x) => <button key={x.id} className={W.sub === x.id ? "on" : ""} onClick={() => set({ sub: x.id, type: "", err: "" })}>{x.name}</button>)}</div></div>
             {W.sub && <div className="field"><label className="req">Asset type</label>
               <select value={W.type} onChange={(e) => set({ type: e.target.value })}><option value="">Choose…</option>{types.map((t) => <option key={t}>{t}</option>)}</select></div>}
-            {W.sub && <div className="field"><label className="req">Channel</label>
+            {W.sub && W.domain !== "demand" && <div className="field"><label className="req">Channel</label>
               <select value={W.channel} onChange={(e) => set({ channel: e.target.value })}><option value="">Choose…</option>{CHANNELS.map((c) => <option key={c}>{c}</option>)}</select></div>}
           </>)}
 
