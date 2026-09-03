@@ -103,9 +103,11 @@ export default function Drawer() {
             ? <video className="dprev vid" src={a.media} poster={a.preview || undefined} controls preload="metadata" />
             : a.media && (a.master?.mime || "").startsWith("audio/")
               ? <div className="dprev" style={{ display: "flex", alignItems: "center", padding: 16 }}><audio src={a.media} controls style={{ width: "100%" }} /></div>
-              : (a.master?.mime || "").startsWith("image/") && a.preview
-                ? <div className="dprev zoom" title="Click to view full size" onClick={() => setShowImg(true)} dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />
-                : <div className="dprev" dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />}
+              : a.doc && (a.master?.mime || "") === "application/pdf"
+                ? <iframe title={a.name} src={a.doc} className="dprev pdf" />
+                : (a.master?.mime || "").startsWith("image/") && a.preview
+                  ? <div className="dprev zoom" title="Click to view full size" onClick={() => setShowImg(true)} dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />
+                  : <div className="dprev" dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />}
 
           {a.master ? (
             <div className="dl">

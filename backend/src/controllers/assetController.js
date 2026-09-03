@@ -68,6 +68,10 @@ async function withUrls(a) {
   if (a.master && mime.startsWith("image/")) {
     c.image = await s3.presignDownload(a.master.s3Key, 6 * 3600).catch(() => null);
   }
+  // PDFs get an inline URL so they can be previewed in an embedded viewer
+  if (a.master && mime === "application/pdf") {
+    c.doc = await s3.presignDownload(a.master.s3Key, 6 * 3600).catch(() => null);
+  }
   return c;
 }
 

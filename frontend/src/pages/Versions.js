@@ -20,6 +20,7 @@ export default function Versions() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [prog, setProg] = useState(null);
+  const [showImg, setShowImg] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => { const t = setTimeout(() => setDq(q), 300); return () => clearTimeout(t); }, [q]);
@@ -119,12 +120,19 @@ export default function Versions() {
                     : <span className="pathcell" style={{ maxWidth: 160, textAlign: "right" }}>Only a Super Admin can send this for approval</span>}
                 </div>
 
-                {sel.media && (sel.master?.mime || "").startsWith("video/") && (
-                  <div className="vx-sec"><video className="vx-video" src={sel.media} poster={sel.preview || undefined} controls preload="metadata" /></div>
-                )}
-                {sel.media && (sel.master?.mime || "").startsWith("audio/") && (
-                  <div className="vx-sec"><audio src={sel.media} controls style={{ width: "100%" }} /></div>
-                )}
+                {(() => {
+                  const mime = sel.master?.mime || "";
+                  if (mime.startsWith("video/") && sel.media)
+                    return <div className="vx-sec"><video className="vx-video" src={sel.media} poster={sel.preview || undefined} controls preload="metadata" /></div>;
+                  if (mime.startsWith("audio/") && sel.media)
+                    return <div className="vx-sec"><audio src={sel.media} controls style={{ width: "100%" }} /></div>;
+                  if (mime === "application/pdf" && sel.doc)
+                    return <div className="vx-sec"><iframe title={sel.name} src={sel.doc} className="vx-pdf" /></div>;
+                  if (mime.startsWith("image/") && (sel.image || sel.preview))
+                    return <div className="vx-sec"><img className="vx-img" src={sel.image || sel.preview} alt={sel.name} onClick={() => setShowImg(true)} title="Click to view full size" /></div>;
+                  // spreadsheets have a generated snapshot preview; anything else shows a file badge
+                  return <div className="vx-sec"><div className="vx-filebadge" dangerouslySetInnerHTML={{ __html: previewMarkup(sel) }} /></div>;
+                })()}
 
                 {/* revisions + history */}
                 <div className="vx-sec">
@@ -173,6 +181,12 @@ export default function Versions() {
             )}
           </div>
         )}
+      {showImg && sel && (
+        <div className="lightbox" onClick={() => setShowImg(false)}>
+          <img src={sel.image || sel.preview} alt={sel.name} onClick={(e) => e.stopPropagation()} />
+          <button className="lb-x" onClick={() => setShowImg(false)} aria-label="Close">×</button>
+        </div>
+      )}
     </>
   );
 }
