@@ -68,7 +68,10 @@ export default function Drawer() {
   const released = !["Draft", "In review"].includes(a.status);   // approved and beyond
   const canDelete = perms.isSuperAdmin || (isOwner && !released); // once approved, admin only
   const canModerate = perms.isApprover || isOwner;   // any lifecycle action at all
-  const approver = perms.isApprover;                  // approve / reject / publish are approver-only
+  // submit / approve / reject: Super Admin (any asset) or a Publisher on their OWN
+  const approver = perms.isApprover || (perms.canSelfPublish && isOwner);
+  // publish: Super Admin (any asset) or the OWNER of the asset (any role)
+  const canPublish = perms.isApprover || isOwner;
 
   // lifecycle actions per status (role-gated; backend enforces too)
   let acts = null;
@@ -79,9 +82,7 @@ export default function Drawer() {
   else if (a.status === "In review") acts = approver
     ? <><button className="btn" onClick={() => act("approve", "Approved")}>Approve</button><button className="btn dgr" onClick={() => act("reject", "Sent back to draft")}>Send back</button></>
     : <span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>Awaiting a reviewer.</span>;
-  else if (a.status === "Approved") acts = a.domain === "demand"
-    ? <>{approver && <button className="btn gold" onClick={() => act("publish", "Published — now Live")}>Publish · make Live</button>}<button className="btn" onClick={() => act("archive", "Archived")}>Archive</button></>
-    : <><span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>Approved is terminal here — in service, not in market.</span><button className="btn" onClick={() => act("archive", "Archived")}>Archive</button></>;
+  else if (a.status === "Approved") acts = <>{canPublish && <button className="btn gold" onClick={() => act("publish", "Published — now Live")}>Publish · make Live</button>}<button className="btn" onClick={() => act("archive", "Archived")}>Archive</button></>;
   else if (a.status === "Live") acts = <button className="btn" onClick={() => act("archive", "Archived")}>Archive</button>;
   else if (a.status === "Expired") acts = <><button className="btn p" onClick={() => act("renew", "Back in review")}>Renew for review</button><button className="btn" onClick={() => act("archive", "Archived")}>Archive</button></>;
   else acts = <button className="btn" onClick={() => act("renew", "Back in review")}>Restore to review</button>;

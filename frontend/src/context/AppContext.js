@@ -79,6 +79,7 @@ export function useApp() {
   const perms = {
     isSuperAdmin: role === "Super Admin",
     isApprover: APPROVER_ROLES.includes(role),
+    canSelfPublish: role === "Publisher",        // can govern their OWN assets end-to-end
     canUpload: role !== "Viewer" && !!role,
     canManageUsers: role === "Super Admin",
     canManageSettings: role === "Super Admin",   // taxonomy + users share "settings access"

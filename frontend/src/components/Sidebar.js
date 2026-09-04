@@ -58,6 +58,7 @@ export default function Sidebar() {
         </button>
         <button className={"nav" + (view === "published" ? " on" : "")} onClick={() => nav("/published")}>
           <span className="ic"><RocketLaunchOutlinedIcon sx={{ fontSize: 17 }} /></span> Published
+          {counts.published > 0 && <span className="ct">{counts.published}</span>}
         </button>
       </div>
 

@@ -4,8 +4,11 @@ import { previewMarkup } from "../utils/thumbs";
 import { fyNowYr, fyLabel, fyRange, fyMatch } from "../utils/tm";
 
 export default function Approvals() {
-  const { approvals, approvalsStatus, fetchApprovals, fetchCounts, updateStatus, openDrawer, toast, perms, tax } = useApp();
+  const { approvals, approvalsStatus, fetchApprovals, fetchCounts, updateStatus, openDrawer, toast, perms, tax, user } = useApp();
   const { pathOf } = tax;
+  const isOwn = (a) => String(a.owner) === String(user.id);
+  const canAct = (a) => perms.isApprover || (perms.canSelfPublish && isOwn(a));   // approve / send back
+  const canPublish = (a) => perms.isApprover || isOwn(a);                          // publish (any owner)
   const [range, setRange] = useState({ from: "", to: "" });
   const [q, setQ] = useState("");
   const [dq, setDq] = useState("");
@@ -64,19 +67,19 @@ export default function Approvals() {
         {approvalsStatus === "loading" ? <div className="empty">Loading…</div>
           : review.length ? review.map((a) => (
             <Row a={a} key={a.id}>
-              {perms.isApprover && <button className="btn sm p" onClick={() => act(a.id, "approve", "Approved")}>Approve</button>}
-              {perms.isApprover && <button className="btn sm dgr" onClick={() => act(a.id, "reject", "Sent back to draft")}>Send back</button>}
+              {canAct(a) && <button className="btn sm p" onClick={() => act(a.id, "approve", "Approved")}>Approve</button>}
+              {canAct(a) && <button className="btn sm dgr" onClick={() => act(a.id, "reject", "Sent back to draft")}>Send back</button>}
               <button className="btn sm" onClick={() => openDrawer(a)}>Open</button>
             </Row>
           )) : <div className="empty"><b>Queue is clear</b>Nothing is waiting on you.</div>}
       </div>
 
       <div className="sect">
-        <h3>Approved campaign work — ready to publish ({counts.approvedDemand ?? approvedDemand.length})</h3>
-        <p className="sub" style={{ margin: "-6px 0 12px", fontSize: 13.5 }}>Only Demand Generation assets go “Live”. In the other domains, <b>Approved</b> is the terminal state — in service, not in market.</p>
+        <h3>Approved — ready to publish ({counts.approvedDemand ?? approvedDemand.length})</h3>
+        <p className="sub" style={{ margin: "-6px 0 12px", fontSize: 13.5 }}>Approved assets waiting to be published (made Live). Publishing puts them in the Published section.</p>
         {approvedDemand.length ? approvedDemand.map((a) => (
           <Row a={a} key={a.id}>
-            {perms.isApprover && <button className="btn sm gold" onClick={() => act(a.id, "publish", "Published — now Live")}>Publish</button>}
+            {canPublish(a) && <button className="btn sm gold" onClick={() => act(a.id, "publish", "Published — now Live")}>Publish</button>}
             <button className="btn sm" onClick={() => openDrawer(a)}>Open</button>
           </Row>
         )) : <div className="empty">Nothing approved and unpublished.</div>}

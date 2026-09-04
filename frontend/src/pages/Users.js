@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import { initials } from "../utils/tm";
 import { confirmDialog } from "../components/Dialogs";
 
-const ROLES = ["Brand Manager", "Reviewer", "Content Editor", "Agency Contributor", "Viewer"];
+const ROLES = ["Brand Manager", "Reviewer", "Publisher", "Content Editor", "Agency Contributor", "Viewer"];
 
 export default function Users() {
   const { users, usersPage, usersHasMore, usersTotal, usersStatus, fetchUsers, addUser, updateUser, setUserPassword, toggleScope, removeUser, perms, toast } = useApp();

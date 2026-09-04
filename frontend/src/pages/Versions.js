@@ -115,7 +115,7 @@ export default function Versions() {
                     <div className="pth">{pathOf(sel)} · {sel.dist}</div>
                     <div className="pth" style={{ marginTop: 2 }}>Uploaded by {sel.by || "—"}</div>
                   </div>
-                  {perms.isApprover
+                  {(perms.isApprover || (perms.canSelfPublish && String(sel.owner) === String(user.id)))
                     ? <button className="btn p" onClick={() => send(sel)}>Send for approval</button>
                     : <span className="pathcell" style={{ maxWidth: 160, textAlign: "right" }}>Only a Super Admin can send this for approval</span>}
                 </div>

@@ -129,12 +129,13 @@ const counts = asyncHandler(async (req, res) => {
     const k = a.domain + "/" + a.sub;
     bySub[k] = (bySub[k] || 0) + 1;
   });
-  const [inReview, expired, drafts] = await Promise.all([
+  const [inReview, expired, drafts, publishedCount] = await Promise.all([
     Asset.countDocuments({ ...base, status: "In review", domain: { $in: DOMAIN_IDS } }),
     Asset.countDocuments({ ...base, domain: { $in: DOMAIN_IDS }, status: { $ne: "Archived" }, expiry: { $ne: null, $lt: today } }),
     Asset.countDocuments({ ...base, status: "Draft", domain: { $in: DOMAIN_IDS } }),  // Versions tracker
+    Asset.countDocuments({ ...base, status: "Live", domain: { $in: DOMAIN_IDS } }),   // Published
   ]);
-  res.json({ total: all.length, byDomain, bySub, inReview, expired, drafts });
+  res.json({ total: all.length, byDomain, bySub, inReview, expired, drafts, published: publishedCount });
 });
 
 // POST /api/assets  (multipart: file + fields) — store master byte-for-byte + a preview
@@ -211,12 +212,15 @@ const updateStatus = asyncHandler(async (req, res) => {
   if (!next) return res.status(400).json({ error: "Unknown action" });
   const isApprover = APPROVER.includes(req.user.role);
   const isOwner = String(a.owner) === String(req.user.id);
-  if (["submit", "approve", "reject", "publish"].includes(action) && !isApprover)
-    return res.status(403).json({ error: "Only a Super Admin can move this to approval, approve, send back or publish" });
+  // submit / approve / reject: Super Admin (any asset) or a Publisher on their OWN
+  const canGovern = isApprover || (req.user.role === "Publisher" && isOwner);
+  if (["submit", "approve", "reject"].includes(action) && !canGovern)
+    return res.status(403).json({ error: "Only a Super Admin (or a Publisher on their own) can submit, approve or send back" });
+  // publish: Super Admin (any asset) or the OWNER of the asset (any role) — publish your own
+  if (action === "publish" && !(isApprover || isOwner))
+    return res.status(403).json({ error: "You can only publish your own assets" });
   if (!isApprover && !isOwner)
     return res.status(403).json({ error: "Not allowed to change this asset" });
-  if (action === "publish" && a.domain !== "demand")
-    return res.status(400).json({ error: "Only Demand Generation assets go Live — Approved is the terminal state here" });
   if (action === "revise") {
     if (!["Approved", "Live"].includes(a.status))
       return res.status(400).json({ error: "Only an approved asset can be revised into a new version" });
@@ -272,7 +276,7 @@ const approvals = asyncHandler(async (req, res) => {
     if (!dateOk(a.date) || !matchQ(a)) continue;
     if (a.status === "In review") R.push(a);
     else if (a.status === "Draft") D.push(a);
-    else if (a.status === "Approved" && a.domain === "demand") AP.push(a);
+    else if (a.status === "Approved") AP.push(a);   // approved & ready to publish (any domain)
 
     if (a.expiry && a.status === "Live" && a.expiry < today)
       F.push({ a, sev: "bad", why: `Marked Live but expired ${a.expiry} — still in circulation.` });
