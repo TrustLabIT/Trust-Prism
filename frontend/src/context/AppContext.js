@@ -80,6 +80,7 @@ export function useApp() {
     isSuperAdmin: role === "Super Admin",
     isApprover: APPROVER_ROLES.includes(role),
     canSelfPublish: role === "Publisher",        // can govern their OWN assets end-to-end
+    canSubmitAll: role === "Super Admin" || role === "Brand Manager", // send ANY asset for approval
     canUpload: role !== "Viewer" && !!role,
     canManageUsers: role === "Super Admin",
     canManageSettings: role === "Super Admin",   // taxonomy + users share "settings access"

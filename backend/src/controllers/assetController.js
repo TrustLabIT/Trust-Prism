@@ -18,7 +18,8 @@ const notExpiredOr = (today) => ({ $or: [{ expiry: null }, { expiry: { $gte: tod
 //    the internal organisation's library or other users' assets.
 //  • Internal users see their organisation's shared library.
 function accessFilter(user) {
-  if (user.role === "Super Admin" || user.scope === "all") return {};
+  // Super Admin and Brand Manager see everything (Brand Manager shepherds all work to approval)
+  if (["Super Admin", "Brand Manager"].includes(user.role) || user.scope === "all") return {};
   if (user.type === "External") return { owner: user.id };
   return { org: user.org };
 }
@@ -210,17 +211,26 @@ const updateStatus = asyncHandler(async (req, res) => {
   const action = req.body.action;
   const next = TRANSITIONS[action];
   if (!next) return res.status(400).json({ error: "Unknown action" });
-  const isApprover = APPROVER.includes(req.user.role);
+  const isApprover = APPROVER.includes(req.user.role);   // Super Admin
   const isOwner = String(a.owner) === String(req.user.id);
-  // submit / approve / reject: Super Admin (any asset) or a Publisher on their OWN
-  const canGovern = isApprover || (req.user.role === "Publisher" && isOwner);
-  if (["submit", "approve", "reject"].includes(action) && !canGovern)
-    return res.status(403).json({ error: "Only a Super Admin (or a Publisher on their own) can submit, approve or send back" });
-  // publish: Super Admin (any asset) or the OWNER of the asset (any role) — publish your own
-  if (action === "publish" && !(isApprover || isOwner))
-    return res.status(403).json({ error: "You can only publish your own assets" });
-  if (!isApprover && !isOwner)
+  const isBrandMgr = req.user.role === "Brand Manager";
+  const isPublisher = req.user.role === "Publisher";
+  if (action === "submit") {
+    // send for approval: Super Admin or Brand Manager (any asset), or a Publisher on their own
+    if (!(isApprover || isBrandMgr || (isPublisher && isOwner)))
+      return res.status(403).json({ error: "You don't have access to send this for approval" });
+  } else if (["approve", "reject"].includes(action)) {
+    // approve / send back: Super Admin only (or a Publisher on their own)
+    if (!(isApprover || (isPublisher && isOwner)))
+      return res.status(403).json({ error: "Only a Super Admin can approve or send back" });
+  } else if (action === "publish") {
+    // publish: Super Admin (any asset) or the owner (any role)
+    if (!(isApprover || isOwner))
+      return res.status(403).json({ error: "You can only publish your own assets" });
+  } else if (!(isApprover || isOwner)) {
+    // archive / renew / revise: Super Admin or the owner
     return res.status(403).json({ error: "Not allowed to change this asset" });
+  }
   if (action === "revise") {
     if (!["Approved", "Live"].includes(a.status))
       return res.status(400).json({ error: "Only an approved asset can be revised into a new version" });

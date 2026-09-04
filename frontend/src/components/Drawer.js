@@ -68,17 +68,19 @@ export default function Drawer() {
   const released = !["Draft", "In review"].includes(a.status);   // approved and beyond
   const canDelete = perms.isSuperAdmin || (isOwner && !released); // once approved, admin only
   const canModerate = perms.isApprover || isOwner;   // any lifecycle action at all
-  // submit / approve / reject: Super Admin (any asset) or a Publisher on their OWN
+  // approve / reject: Super Admin (any asset) or a Publisher on their OWN
   const approver = perms.isApprover || (perms.canSelfPublish && isOwner);
+  // send for approval: Super Admin / Brand Manager (any asset) or a Publisher on their OWN
+  const canSubmit = perms.canSubmitAll || (perms.canSelfPublish && isOwner);
   // publish: Super Admin (any asset) or the OWNER of the asset (any role)
   const canPublish = perms.isApprover || isOwner;
 
   // lifecycle actions per status (role-gated; backend enforces too)
   let acts = null;
   if (!canModerate) acts = null;
-  else if (a.status === "Draft") acts = approver
+  else if (a.status === "Draft") acts = canSubmit
     ? <button className="btn p" onClick={() => act("submit", "Submitted for review")}>Submit for review</button>
-    : <span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>Only a Super Admin can send this for approval.</span>;
+    : <span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>You don’t have access to send this for approval.</span>;
   else if (a.status === "In review") acts = approver
     ? <><button className="btn" onClick={() => act("approve", "Approved")}>Approve</button><button className="btn dgr" onClick={() => act("reject", "Sent back to draft")}>Send back</button></>
     : <span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>Awaiting a reviewer.</span>;
