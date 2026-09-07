@@ -107,7 +107,7 @@ export default function Drawer() {
             : a.media && (a.master?.mime || "").startsWith("audio/")
               ? <div className="dprev" style={{ display: "flex", alignItems: "center", padding: 16 }}><audio src={a.media} controls style={{ width: "100%" }} /></div>
               : a.doc && (a.master?.mime || "") === "application/pdf"
-                ? <iframe title={a.name} src={a.doc} className="dprev pdf" />
+                ? <div className="pdfbox"><iframe title={a.name} src={a.doc} className="pdfframe" /><button className="btn pdf-open" onClick={() => setShowImg(true)}>⤢ Open full screen</button></div>
                 : (a.master?.mime || "").startsWith("image/") && a.preview
                   ? <div className="dprev zoom" title="Click to view full size" onClick={() => setShowImg(true)} dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />
                   : <div className="dprev" dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />}
@@ -211,7 +211,9 @@ export default function Drawer() {
       {shareOpen && <ShareModal presetAsset={a} onClose={() => setShareOpen(false)} />}
       {showImg && (
         <div className="lightbox" onClick={() => setShowImg(false)}>
-          <img src={a.image || a.preview} alt={a.name} onClick={(e) => e.stopPropagation()} />
+          {(a.master?.mime || "") === "application/pdf" && a.doc
+            ? <iframe title={a.name} src={a.doc} className="lb-pdf" onClick={(e) => e.stopPropagation()} />
+            : <img src={a.image || a.preview} alt={a.name} onClick={(e) => e.stopPropagation()} />}
           <button className="lb-x" onClick={() => setShowImg(false)} aria-label="Close">×</button>
         </div>
       )}

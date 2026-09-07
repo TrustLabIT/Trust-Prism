@@ -127,7 +127,7 @@ export default function Versions() {
                   if (mime.startsWith("audio/") && sel.media)
                     return <div className="vx-sec"><audio src={sel.media} controls style={{ width: "100%" }} /></div>;
                   if (mime === "application/pdf" && sel.doc)
-                    return <div className="vx-sec"><iframe title={sel.name} src={sel.doc} className="vx-pdf" /></div>;
+                    return <div className="vx-sec"><iframe title={sel.name} src={sel.doc} className="vx-pdf" /><button className="btn pdf-open" onClick={() => setShowImg(true)} style={{ marginTop: 8 }}>⤢ Open full screen</button></div>;
                   if (mime.startsWith("image/") && (sel.image || sel.preview))
                     return <div className="vx-sec"><img className="vx-img" src={sel.image || sel.preview} alt={sel.name} onClick={() => setShowImg(true)} title="Click to view full size" /></div>;
                   // spreadsheets have a generated snapshot preview; anything else shows a file badge
@@ -183,7 +183,9 @@ export default function Versions() {
         )}
       {showImg && sel && (
         <div className="lightbox" onClick={() => setShowImg(false)}>
-          <img src={sel.image || sel.preview} alt={sel.name} onClick={(e) => e.stopPropagation()} />
+          {(sel.master?.mime || "") === "application/pdf" && sel.doc
+            ? <iframe title={sel.name} src={sel.doc} className="lb-pdf" onClick={(e) => e.stopPropagation()} />
+            : <img src={sel.image || sel.preview} alt={sel.name} onClick={(e) => e.stopPropagation()} />}
           <button className="lb-x" onClick={() => setShowImg(false)} aria-label="Close">×</button>
         </div>
       )}
