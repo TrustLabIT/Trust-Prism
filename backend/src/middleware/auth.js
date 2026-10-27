@@ -12,6 +12,7 @@ async function protect(req, res, next) {
     const payload = jwt.verify(token, jwtCfg.secret);
     const user = await User.findById(payload.id);
     if (!user) return res.status(401).json({ error: "User no longer exists" });
+    if (user.status === "Disabled") return res.status(403).json({ error: "This account is disabled. Contact your administrator." });
 
     req.user = user;
     next();

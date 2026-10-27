@@ -22,6 +22,9 @@ const login = asyncHandler(async (req, res) => {
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ error: "Invalid email or password" });
   }
+  if (user.status === "Disabled") {
+    return res.status(403).json({ error: "This account is disabled. Contact your administrator." });
+  }
   const token = signToken(user);
   res.json({ token, user: user.toJSON() });
 });

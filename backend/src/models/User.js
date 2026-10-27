@@ -12,7 +12,8 @@ const userSchema = new mongoose.Schema(
     type: { type: String, enum: ["Internal", "External"], default: "Internal" },
     org: { type: String, default: "Internal" },       // "Internal" or an agency name
     scope: { type: String, enum: ["own", "all"], default: "own" },
-    status: { type: String, enum: ["Active", "Invited"], default: "Active" },
+    status: { type: String, enum: ["Active", "Invited", "Disabled"], default: "Active" },
+    matchUuid: { type: String, default: null, index: true }, // PACE cross-app person key (identity-hub provisioning)
   },
   { timestamps: true }
 );
