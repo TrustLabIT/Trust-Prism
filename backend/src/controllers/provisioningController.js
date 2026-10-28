@@ -47,7 +47,7 @@ const ping = asyncHandler(async (_req, res) => {
 });
 
 const rotateToken = asyncHandler(async (req, res) => {
-  const token = req.body && req.body.token;
+  const token = req.body && (req.body.new_token || req.body.token); // PACE sends `new_token`
   if (!token || String(token).trim().length < 16) {
     return res.status(400).json({ error: "A new token of at least 16 characters is required." });
   }
