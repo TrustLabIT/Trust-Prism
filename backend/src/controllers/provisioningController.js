@@ -80,13 +80,16 @@ const store = asyncHandler(async (req, res) => {
     return res.json({ user: view(user), created: false, password_set: Boolean(b.password) });
   }
 
-  // New account. A password is required to be able to sign in.
-  if (!b.password) return res.status(400).json({ error: "password is required when creating a new user." });
+  // New account needs a credential to sign in: plaintext (the pre-save hook
+  // hashes it) or a ready bcrypt hash from PACE (edit-page provisioning sends
+  // only password_hash; the hook stores a $2y$ hash as-is).
+  const secret = b.password ? String(b.password) : (b.password_hash ? String(b.password_hash) : null);
+  if (!secret) return res.status(400).json({ error: "password or password_hash is required when creating a new user." });
   try {
     user = await User.create({
       name,
       email,
-      password: String(b.password), // pre('save') hook hashes it
+      password: secret, // pre('save') hook hashes plaintext, keeps a bcrypt hash as-is
       role: "Viewer",
       type: "Internal",
       org: "Internal",

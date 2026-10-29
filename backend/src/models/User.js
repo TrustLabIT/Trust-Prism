@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema(
 // Hash the password whenever it is set/changed (Mongoose 9 async middleware — no next())
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
+  // Already a bcrypt hash (PACE edit-page provisioning sends a ready $2y$ hash)?
+  // Store it as-is; only hash plaintext. bcryptjs verifies $2y$ hashes too, so
+  // the person signs in to TrustMark with the same password as in PACE.
+  if (/^\$2[aby]\$/.test(this.password)) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 
