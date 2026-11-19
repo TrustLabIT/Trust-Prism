@@ -33,7 +33,9 @@ router.post("/confirm", ctrl.confirm);
 router.get("/:id", ctrl.getOne);
 router.get("/:id/url", ctrl.downloadUrl);
 router.get("/:id/file-url", ctrl.versionUrl);          // download a specific version/revision file
-router.post("/:id/version", ctrl.addVersion);          // add a new revision (file change)
+router.get("/:id/zip", ctrl.zipList);                  // look inside a zip master (file listing)
+router.get("/:id/zip/file", ctrl.zipFile);             // open one file from inside the zip
+router.post("/:id/version", ctrl.addVersion);         // add a new revision (file change)
 router.post("/:id/comment", ctrl.addComment);          // leave feedback
 router.patch("/:id", ctrl.update);
 router.patch("/:id/status", ctrl.updateStatus);

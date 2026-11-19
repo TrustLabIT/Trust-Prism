@@ -157,8 +157,19 @@ async function presignDownload(key, expiresIn = 900, opts = {}) {
   return getSignedUrl(client, cmd, { expiresIn });
 }
 
+// Read part of an object with an HTTP Range header ("bytes=0-99", or "bytes=-500" for the
+// last 500 bytes). Returns the bytes plus the object's total size. Used to browse zips in place.
+async function getRange(key, range) {
+  assertConfigured();
+  const out = await client.send(new GetObjectCommand({ Bucket: aws.bucket, Key: key, Range: range }));
+  const buffer = Buffer.from(await out.Body.transformToByteArray());
+  const m = /\/(\d+)$/.exec(out.ContentRange || "");
+  return { buffer, total: m ? Number(m[1]) : buffer.length };
+}
+
 module.exports = {
   s3Configured,
+  getRange,
   buildKey,
   compressImage,
   gzipBuffer,

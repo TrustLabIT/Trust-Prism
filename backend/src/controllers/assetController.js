@@ -1,5 +1,6 @@
 const Asset = require("../models/Asset");
 const s3 = require("../services/s3");
+const zip = require("../services/zip");
 const { asyncHandler } = require("../middleware/error");
 const { parsePage, paginate } = require("../utils/paginate");
 const tax = require("../services/taxonomy");   // live, editable taxonomy (DB-backed)
@@ -549,7 +550,65 @@ const versionUrl = asyncHandler(async (req, res) => {
   res.json({ url });
 });
 
+/* ---------- Look inside a zip master without downloading it ---------- */
+const isZip = (f) => !!f && (
+  String(f.ext || "").toLowerCase() === "zip" ||
+  /\.zip$/i.test(f.fname || "") ||
+  ["application/zip", "application/x-zip-compressed"].includes(f.mime)
+);
+
+// the file to inspect: a specific version/revision if asked for, otherwise the current master
+async function zipTarget(req, res) {
+  const a = await Asset.findOne({ _id: req.params.id, ...accessFilter(req.user) });
+  if (!a) { res.status(404).json({ error: "Asset not found" }); return null; }
+  let f = a.master;
+  if (req.query.version && req.query.revision) {
+    const ver = Number(req.query.version), rev = Number(req.query.revision);
+    f = (a.versions || []).find((x) => (x.version || 1) === ver && (x.revision || 1) === rev);
+  }
+  if (!f) { res.status(404).json({ error: "File not found" }); return null; }
+  if (!isZip(f)) { res.status(400).json({ error: "This file isn't a zip archive" }); return null; }
+  return f;
+}
+
+// GET /api/assets/:id/zip?version=&revision=  — the archive's file listing
+const zipList = asyncHandler(async (req, res) => {
+  const f = await zipTarget(req, res);
+  if (!f) return;
+  const r = await zip.list(f.s3Key);
+  res.json({
+    entries: r.entries.map((e) => ({ name: e.name, dir: e.dir, size: e.size, encrypted: e.encrypted })),
+    count: r.count, truncated: r.truncated,
+  });
+});
+
+const ZIP_IMG = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", avif: "image/avif", svg: "image/svg+xml" };
+const ZIP_TEXT = ["txt", "md", "csv", "tsv", "json", "xml", "html", "htm", "css", "js", "ts", "log", "yml", "yaml", "ini", "rtf"];
+
+// GET /api/assets/:id/zip/file?path=<entry name>&version=&revision=  — one file out of the archive
+const zipFile = asyncHandler(async (req, res) => {
+  const f = await zipTarget(req, res);
+  if (!f) return;
+  const { entries } = await zip.list(f.s3Key);
+  const entry = entries.find((e) => e.name === req.query.path);
+  if (!entry) return res.status(404).json({ error: "That file isn't in this zip" });
+  const buf = await zip.readEntry(f.s3Key, entry);
+
+  const base = entry.name.split("/").pop() || "file";
+  const ext = (base.includes(".") ? base.split(".").pop() : "").toLowerCase();
+  // text-ish files (incl. HTML/JS) are always served as plain text so nothing in a zip can execute
+  const type = ZIP_IMG[ext] || (ext === "pdf" ? "application/pdf" : ZIP_TEXT.includes(ext) ? "text/plain; charset=utf-8" : "application/octet-stream");
+  res.set({
+    "Content-Type": type,
+    "Content-Disposition": `attachment; filename="${base.replace(/[^\w.\- ]+/g, "_")}"`,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, max-age=300",
+  });
+  res.send(buf);
+});
+
 module.exports = {
+  zipList, zipFile,
   list, counts, create, getOne, downloadUrl, updateStatus, update, approvals, expired, remove,
   presign, signPart, completeUpload, abortUpload, presignPreview, confirm,
   versionsList, published, addComment, addVersion, versionUrl,

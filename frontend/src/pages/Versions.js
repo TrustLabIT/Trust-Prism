@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { uploadFullFile } from "../api/upload";
 import { previewMarkup } from "../utils/thumbs";
 import { fmtBytes } from "../utils/tm";
+import ZipBrowser, { isZipFile } from "../components/ZipBrowser";
 
 const when = (d) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -130,6 +131,9 @@ export default function Versions() {
                     return <div className="vx-sec"><iframe title={sel.name} src={sel.doc} className="vx-pdf" /><button className="btn pdf-open" onClick={() => setShowImg(true)} style={{ marginTop: 8 }}>⤢ Open full screen</button></div>;
                   if (mime.startsWith("image/") && (sel.image || sel.preview))
                     return <div className="vx-sec"><img className="vx-img" src={sel.image || sel.preview} alt={sel.name} onClick={() => setShowImg(true)} title="Click to view full size" /></div>;
+                  // zips: list what's inside so it can be checked before downloading
+                  if (isZipFile(sel.master))
+                    return <div className="vx-sec"><ZipBrowser key={sel.id + "-" + (sel.versions?.length || 0)} assetId={sel.id} /></div>;
                   // spreadsheets have a generated snapshot preview; anything else shows a file badge
                   return <div className="vx-sec"><div className="vx-filebadge" dangerouslySetInnerHTML={{ __html: previewMarkup(sel) }} /></div>;
                 })()}

@@ -6,6 +6,7 @@ import { previewMarkup } from "../utils/thumbs";
 import { fmtDate, fmtBytes, daysTo, stClass } from "../utils/tm";
 import { confirmDialog } from "./Dialogs";
 import ShareModal from "./ShareModal";
+import ZipBrowser, { isZipFile } from "./ZipBrowser";
 
 const when = (d) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -111,6 +112,8 @@ export default function Drawer() {
                 : (a.master?.mime || "").startsWith("image/") && a.preview
                   ? <div className="dprev zoom" title="Click to view full size" onClick={() => setShowImg(true)} dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />
                   : <div className="dprev" dangerouslySetInnerHTML={{ __html: previewMarkup(a) }} />}
+
+          {isZipFile(a.master) && <ZipBrowser key={a.id + (a.master.sha256 || a.master.fname)} assetId={a.id} />}
 
           {a.master ? (
             <div className="dl">

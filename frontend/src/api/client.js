@@ -28,7 +28,19 @@ async function request(path, { method = "GET", body, isForm = false } = {}) {
   return data;
 }
 
+// Authenticated GET that returns raw bytes (e.g. one file pulled out of a zip).
+async function requestBlob(path) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return res.blob();
+}
+
 export const api = {
+  blob: requestBlob,
   get: (p) => request(p),
   post: (p, body) => request(p, { method: "POST", body }),
   put: (p, body) => request(p, { method: "PUT", body }),
