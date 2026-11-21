@@ -54,7 +54,7 @@ before(async () => {
   await mongoose.connect(mongo.getUri());
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
-  // the hub, as far as Trust Prism can tell
+  // the hub, as far as TrustMark can tell
   fakeHub = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
@@ -99,9 +99,9 @@ test("the endpoints are closed without the right key", async () => {
   env.cmdHub.apiKey = "hub-test-key";
 });
 
-test("pending lists the three tabs, as the Super Admin sees them", async () => {
+test("pending lists the two tabs, as the Super Admin sees them", async () => {
   const review = await asset();
-  await asset({ name: "Rate card 2026", status: "Approved", domain: "demand", sub: "trade", type: "Rate Card" });
+  await asset({ name: "Rate card 2026", status: "Approved", domain: "demand", sub: "trade", type: "Rate Card" });   // approved: published in TrustMark
   await asset({ name: "Logo lockup", status: "Draft", domain: "foundation", sub: "logo", type: "2D Primary", org: "Agency X" });
   await asset({ name: "Old poster", status: "Live" });       // already published: not the hub's
   await asset({ name: "Retired", status: "Archived" });
@@ -109,19 +109,20 @@ test("pending lists the three tabs, as the Super Admin sees them", async () => {
   const res = await call("GET", "/pending");
   assert.equal(res.status, 200);
   // the Version Tracker is shown but is not a decision waiting
-  assert.deepEqual(res.json.pending, { review: 1, publish: 1, draft: 1, total: 2 });
+  assert.deepEqual(res.json.pending, { draft: 1, review: 1, total: 1 });
+  // the Version Tracker first, then what waits for approval
   assert.deepEqual(res.json.stages.map((s) => [s.key, s.name, s.count]), [
-    ["review", "Needs review", 1], ["publish", "Ready to publish", 1], ["draft", "Version Tracker", 1],
+    ["draft", "Version Tracker", 1], ["review", "Approval", 1],
   ]);
 
-  const item = res.json.stages[0].items[0];
+  const item = res.json.stages[1].items[0];
   assert.equal(item.id, String(review._id));
   assert.equal(item.name, "Diwali hoarding");
   assert.equal(item.path, "Demand Generation / Out-of-Home / Hoarding");
   assert.deepEqual(item.file, { name: "hero.png", ext: "PNG", size: "1.5 MB", kind: "image" });
   assert.match(item.thumb, /^https:\/\/prism-test\.s3\..*previews\/hero\.webp/);
   // an agency's upload is the Super Admin's to see too
-  assert.equal(res.json.stages[2].items[0].name, "Logo lockup");
+  assert.equal(res.json.stages[0].items[0].name, "Logo lockup");
 });
 
 test("one asset in full: details, the file ready to show, every revision, the feedback", async () => {
@@ -155,7 +156,7 @@ test("a file opens in place when it can, and is saved under its own name when it
   a.versions.push({ version: 1, revision: 2, ...file(), by: "Asha", at: new Date() });
   await a.save();
 
-  // a Word file has no in-place viewer: it is downloaded, as in Trust Prism
+  // a Word file has no in-place viewer: it is downloaded, as in TrustMark
   const doc = (await call("GET", `/items/${a._id}/file-url?doc=master`)).json;
   assert.equal(doc.kind, "file");
   assert.equal(doc.download, true);
@@ -194,14 +195,14 @@ test("a zip is looked inside without downloading it, and one file opened from it
   assert.equal((await call("GET", `/items/${png._id}/zip?doc=master`)).status, 400);
 });
 
-test("needs review: approve moves it to ready to publish; a second tap does not act twice", async () => {
+test("approval: approve approves it, and it leaves the hub; a second tap does not act twice", async () => {
   const a = await asset();
   const ok = await call("POST", `/items/${a._id}/approve`, { body: { stage: "review", by: "Venkata" } });
   assert.equal(ok.status, 200);
   assert.equal(ok.json.verb, "Approved");
   assert.equal(ok.json.ref, "Diwali hoarding");
-  assert.deepEqual(ok.json.from, { key: "review", name: "Needs review" });
-  assert.deepEqual(ok.json.pending, { review: 0, publish: 1, draft: 0, total: 1 });
+  assert.deepEqual(ok.json.from, { key: "review", name: "Approval" });
+  assert.deepEqual(ok.json.pending, { draft: 0, review: 0, total: 0 });
   assert.equal((await Asset.findById(a._id)).status, "Approved");
 
   const again = await call("POST", `/items/${a._id}/approve`, { body: { stage: "review" } });
@@ -210,7 +211,7 @@ test("needs review: approve moves it to ready to publish; a second tap does not 
   assert.equal((await Asset.findById(a._id)).status, "Approved");
 });
 
-test("needs review: send back returns it to the Version Tracker with the reason as feedback", async () => {
+test("approval: send back returns it to the Version Tracker with the reason as feedback", async () => {
   const a = await asset();
   const back = await call("POST", `/items/${a._id}/sendback`, { body: { stage: "review", reason: "Logo is too small.", by: "Venkata" } });
   assert.equal(back.status, 200);
@@ -221,21 +222,13 @@ test("needs review: send back returns it to the Version Tracker with the reason 
   assert.equal(now.comments[0].byName, "Venkata (CMD · Approval Hub)");
 });
 
-test("ready to publish: approve publishes it; send back starts the next version", async () => {
+test("an approved asset is published in TrustMark, not from the hub", async () => {
   const a = await asset({ status: "Approved" });
-  const live = await call("POST", `/items/${a._id}/approve`, { body: { stage: "publish" } });
-  assert.equal(live.json.verb, "Published");
-  const now = await Asset.findById(a._id);
-  assert.equal(now.status, "Live");
-  assert.ok(now.publishedAt);
-  // published: nothing left for the hub to decide
+  const res = await call("POST", `/items/${a._id}/approve`, { body: { stage: "review" } });
+  assert.equal(res.status, 409);
+  assert.equal(res.json.code, "moved");
+  assert.equal((await Asset.findById(a._id)).status, "Approved");
   assert.equal((await call("GET", `/items/${a._id}`)).status, 409);
-
-  const b = await asset({ name: "Rate card", status: "Approved" });
-  await call("POST", `/items/${b._id}/sendback`, { body: { stage: "publish" } });
-  const revised = await Asset.findById(b._id);
-  assert.equal(revised.status, "Draft");
-  assert.equal(revised.version, 2);
 });
 
 test("version tracker: feedback stays on the draft; approve sends it for approval", async () => {
@@ -282,11 +275,11 @@ test("the hub is told when an asset is sent for approval, and quietly when work 
   assert.deepEqual(hubCalls[0].body.changes, [{ ref: "Diwali hoarding", party: "Hoarding", amount_text: "", from: null, to: "review" }]);
   assert.equal(hubCalls[0].body.pending.review, 1);
 
-  // approved by the CMD: a move between the hub's own tabs
+  // approved by the CMD: it leaves the hub, and nobody is rung
   hubCalls.length = 0;
   await call("POST", `/items/${a._id}/approve`, { body: { stage: "review" } });
   await settle();
-  assert.deepEqual([hubCalls[0].body.changes[0].from, hubCalls[0].body.changes[0].to, hubCalls[0].body.changes[0].silent], ["review", "publish", true]);
+  assert.deepEqual([hubCalls[0].body.changes[0].from, hubCalls[0].body.changes[0].to, hubCalls[0].body.changes[0].silent], ["review", null, true]);
 
   // a save that changes nothing about where it stands says nothing
   hubCalls.length = 0;

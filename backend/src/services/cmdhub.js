@@ -1,15 +1,15 @@
-// Trust Prism's side of the CMD Approval Hub.
+// TrustMark's side of the CMD Approval Hub.
 //
 // The hub is one inbox where approvals from several TrustLab systems are
 // decided. Its user is the CMD, who is the Super Admin here, so from Trust
-// Prism it shows what the Super Admin works through on "Approvals &
-// governance" and in the Version Tracker:
+// Prism it shows the two places an asset waits before it is approved:
 //
-//   review   Needs review      assets "In review": approve, or send back
-//   publish  Ready to publish  assets "Approved": publish (make Live), or send
-//                              back to the Version Tracker for changes
 //   draft    Version Tracker   assets still "Draft": read the revisions, leave
 //                              feedback, send for approval
+//   review   Approval          assets "In review": approve, or send back
+//
+// Publishing an approved asset (making it Live) is done in TrustMark
+// itself; once approved, an asset is no longer the hub's.
 //
 // What the hub can do with them is in controllers/cmdHubController.js. This
 // file holds what both directions share — which assets are waiting, and how
@@ -17,7 +17,7 @@
 // for approval (or moves on), the hub is told, so the phone rings at once
 // instead of the hub having to keep asking. It is told after the save, off the
 // request, and a hub that is down, slow or not set up never gets in the way
-// of the person using Trust Prism: every failure is logged and dropped. The
+// of the person using TrustMark: every failure is logged and dropped. The
 // hub re-reads the queues whenever it is opened, so a missed message costs a
 // late notification, never a wrong list.
 const Asset = require("../models/Asset");
@@ -27,9 +27,8 @@ const { cmdHub } = require("../config/env");
 
 // The hub's tabs, by the key it knows each by, and the status behind each
 const STAGES = [
-  { key: "review", name: "Needs review", status: "In review" },
-  { key: "publish", name: "Ready to publish", status: "Approved" },
   { key: "draft", name: "Version Tracker", status: "Draft" },
+  { key: "review", name: "Approval", status: "In review" },
 ];
 const stageOfStatus = (status) => STAGES.find((s) => s.status === status) || null;
 
@@ -39,7 +38,7 @@ const LIST_LIMIT = 200;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const daysTo = (d) => Math.round((new Date(d + "T00:00:00") - new Date(todayStr() + "T00:00:00")) / 86400000);
 
-// "1.4 MB" — as the Trust Prism screens print a size
+// "1.4 MB" — as the TrustMark screens print a size
 function sizeText(bytes) {
   const n = Number(bytes) || 0;
   if (n <= 0) return "";
@@ -55,7 +54,7 @@ const isZip = (f) => !!f && (
   ["application/zip", "application/x-zip-compressed"].includes(f.mime)
 );
 
-// What a file is, for whoever shows it: the same split the Trust Prism drawer
+// What a file is, for whoever shows it: the same split the TrustMark drawer
 // makes. Images, PDFs, video and audio open in place; a zip is looked inside;
 // anything else (Word, Excel, PowerPoint, design files…) is downloaded.
 function kindOf(f) {
@@ -101,7 +100,7 @@ function flagsOf(a) {
 
 /* ---------------- what is waiting ---------------- */
 
-// Everything in the three tabs, as the Super Admin sees it (every organisation)
+// Everything in the two tabs, as the Super Admin sees it (every organisation)
 async function waiting() {
   const domain = { $in: await tax.domainIds() };
   const docs = await Asset.find({ domain, status: { $in: STAGES.map((s) => s.status) } }).sort({ updatedAt: -1 });
@@ -118,7 +117,7 @@ async function pendingCounts() {
   }));
   // The reminder is about decisions waiting: the Version Tracker is work in
   // progress, shown in the hub but not counted as waiting on the CMD
-  out.total = out.review + out.publish;
+  out.total = out.review;
   return out;
 }
 
@@ -145,7 +144,7 @@ async function card(a, pathOf) {
     expiry: a.expiry || null,
     file: { name: m.fname || "", ext: String(m.ext || "").toUpperCase(), size: sizeText(m.size), kind },
     flags: flagsOf(a),
-    // a small picture of it, where there is one (short-lived link, as in Trust Prism)
+    // a small picture of it, where there is one (short-lived link, as in TrustMark)
     thumb: previewKey ? await s3.presignDownload(previewKey, 6 * 3600).catch(() => null) : null,
   };
 }
@@ -208,7 +207,7 @@ async function detail(a, pathOf) {
     .map(([label, value]) => ({ label, value: String(value) }));
 
   // The current file, ready to show in place: the link plays, pages or
-  // displays it directly from storage, exactly as the Trust Prism drawer does
+  // displays it directly from storage, exactly as the TrustMark drawer does
   let preview = null;
   if (a.master && OPENS_IN_PLACE.includes(kind)) {
     preview = {

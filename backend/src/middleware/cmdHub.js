@@ -16,7 +16,7 @@ function keyMatches(presented) {
 
 function cmdHubGuard(req, res, next) {
   if (!cmdHub.apiKey) {
-    return res.status(503).json({ ok: false, error: "The Approval Hub API is not configured here (set CMD_HUB_API_KEY in Trust Prism)." });
+    return res.status(503).json({ ok: false, error: "The Approval Hub API is not configured here (set CMD_HUB_API_KEY in TrustMark)." });
   }
   const presented = req.headers["x-api-key"];
   if (!keyMatches(Array.isArray(presented) ? presented[0] : presented)) {

@@ -1,12 +1,12 @@
-// The CMD Approval Hub's window onto Trust Prism.
+// The CMD Approval Hub's window onto TrustMark.
 //
 // The hub's server calls these with the shared key in X-Api-Key (see
-// middleware/cmdHub.js); there is no session and no Trust Prism login behind
+// middleware/cmdHub.js); there is no session and no TrustMark login behind
 // them. The hub's user is the CMD, who is the Super Admin here, so they show
-// what the Super Admin sees on "Approvals & governance" and in the Version
-// Tracker, and decide what the Super Admin decides.
+// what the Super Admin sees in the Version Tracker and waiting for approval,
+// and decide what the Super Admin decides.
 //
-//   GET  /api/cmdhub/pending                      the three tabs, each with its assets
+//   GET  /api/cmdhub/pending                      the two tabs, each with its assets
 //   GET  /api/cmdhub/items/:id                    one asset in full: its details, the file
 //                                                 ready to show, every revision, the feedback
 //   GET  /api/cmdhub/items/:id/file-url?doc=      a short-lived link to one file
@@ -21,13 +21,15 @@
 // has moved on since is refused (409, code "moved") so a second tap on a
 // stale list never acts twice:
 //
-//   review   approve    -> Approved            sendback -> Draft (Version Tracker)
-//   publish  approve    -> Live (published)    sendback -> Draft, as the next version
 //   draft    approve    -> In review (sent for approval)
 //            reject     -> stays a Draft; the reason is left as feedback
+//   review   approve    -> Approved            sendback -> Draft (Version Tracker)
+//
+// An approved asset is published (made Live) in TrustMark itself: it is no
+// longer in either tab, and the hub is told there is nothing left to decide.
 //
 // Nothing about deciding is re-implemented: each of these runs the very
-// handler the Trust Prism screens call (assetController.updateStatus /
+// handler the TrustMark screens call (assetController.updateStatus /
 // addComment), as a Super Admin. The only difference is the name feedback is
 // recorded under: "<the hub user's name> (CMD · Approval Hub)".
 //
@@ -106,7 +108,7 @@ async function zipTarget(req, res) {
 const ZIP_IMG = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", avif: "image/avif", svg: "image/svg+xml" };
 const ZIP_TEXT = ["txt", "md", "csv", "tsv", "json", "xml", "html", "htm", "css", "js", "ts", "log", "yml", "yaml", "ini", "rtf"];
 const extOf = (name) => { const base = String(name).split("/").pop(); return base.includes(".") ? base.split(".").pop().toLowerCase() : ""; };
-// What the apps can open from inside a zip, as the Trust Prism zip browser does
+// What the apps can open from inside a zip, as the TrustMark zip browser does
 const openable = (name) => { const e = extOf(name); return ZIP_IMG[e] ? "image" : e === "pdf" ? "pdf" : ZIP_TEXT.includes(e) ? "text" : null; };
 
 // GET /api/cmdhub/items/:id/zip?doc=  — the archive's file listing
@@ -159,7 +161,7 @@ const zipFile = asyncHandler(async (req, res) => {
 
 /* ---------------- deciding ---------------- */
 
-// Runs one of the Trust Prism handlers as a Super Admin and hands back what it
+// Runs one of the TrustMark handlers as a Super Admin and hands back what it
 // answered: { status, body }. The hub's user has no login here, so a stand-in
 // carrying their name is put in for this one call — never saved, no id.
 async function runAs(handler, by, id, body) {
@@ -182,17 +184,13 @@ async function runAs(handler, by, id, body) {
 // What each action is in each tab: the lifecycle step it runs, how the hub's
 // history words it, and where the asset is afterwards
 const STEPS = {
-  review: {
-    approve: { action: "approve", verb: "Approved", to: "Ready to publish" },
-    sendback: { action: "reject", verb: "Sent back", to: "Version Tracker" },
-  },
-  publish: {
-    approve: { action: "publish", verb: "Published", to: "Live" },
-    sendback: { action: "revise", verb: "Sent back", to: "Version Tracker" },
-  },
   draft: {
-    approve: { action: "submit", verb: "Sent for approval", to: "Needs review" },
+    approve: { action: "submit", verb: "Sent for approval", to: "Approval" },
     reject: { comment: true, verb: "Commented", to: "Version Tracker" },
+  },
+  review: {
+    approve: { action: "approve", verb: "Approved", to: "Approved" },
+    sendback: { action: "reject", verb: "Sent back", to: "Version Tracker" },
   },
 };
 
@@ -218,11 +216,11 @@ const act = asyncHandler(async (req, res) => {
   // to change it will read it
   if (reason && (step.comment || req.params.action === "sendback")) {
     const said = await runAs(assets.addComment, body.by, id, { text: reason });
-    if (said.status >= 400) return fail(res, said.status, (said.body && said.body.error) || "Trust Prism could not save that.");
+    if (said.status >= 400) return fail(res, said.status, (said.body && said.body.error) || "TrustMark could not save that.");
   }
   if (step.action) {
     const said = await runAs(assets.updateStatus, body.by, id, { action: step.action });
-    if (said.status >= 400) return fail(res, said.status, (said.body && said.body.error) || "Trust Prism could not complete that.");
+    if (said.status >= 400) return fail(res, said.status, (said.body && said.body.error) || "TrustMark could not complete that.");
   }
 
   res.json({
