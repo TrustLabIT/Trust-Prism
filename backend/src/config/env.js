@@ -10,6 +10,14 @@ module.exports = {
     secret: process.env.JWT_SECRET || "dev-secret-change-me",
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   },
+  // CMD Approval Hub — the one inbox where the CMD (the Super Admin here)
+  // decides approvals from several TrustLab systems. See services/cmdhub.js.
+  cmdHub: {
+    apiKey: (process.env.CMD_HUB_API_KEY || "").trim(),         // the hub presents it to /api/cmdhub/*
+    webhookUrl: (process.env.CMD_HUB_WEBHOOK_URL || "").trim(), // where we tell the hub something moved
+    webhookKey: (process.env.CMD_HUB_WEBHOOK_KEY || "").trim(), // ...and the key we present there
+    timeoutMs: (Number(process.env.CMD_HUB_TIMEOUT) || 10) * 1000,
+  },
   aws: {
     // accept either naming convention
     region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "",

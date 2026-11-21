@@ -12,6 +12,7 @@ const taxonomyRouter = require("./routes/taxonomy");
 const sharesRouter = require("./routes/shares");
 const publicRouter = require("./routes/public");
 const provisioningRouter = require("./routes/provisioning");
+const cmdHubRouter = require("./routes/cmdhub");
 // TrustMark scope: Collections, Templates and Brand Kit are not mounted (dormant on disk).
 // Shared Links (+ its public portal) are kept and adapted to the new asset model.
 
@@ -36,6 +37,8 @@ app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
 // PACE identity hub (server-to-server, guarded by X-Provisioning-Token)
 app.use("/api/provisioning", provisioningRouter);
+// CMD Approval Hub (server-to-server, guarded by X-Api-Key)
+app.use("/api/cmdhub", cmdHubRouter);
 app.use("/api/assets", assetsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/taxonomy", taxonomyRouter);

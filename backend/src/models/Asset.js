@@ -92,6 +92,28 @@ const assetSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every save that changes where an asset stands in its lifecycle passes
+// through here, whichever screen or script made it, so the CMD Approval Hub
+// hears of an asset the moment it is sent for approval and again when it
+// moves on. See services/cmdhub.js (required late: it requires this model).
+assetSchema.pre("save", async function () {
+  this.$locals.hubTell = false;
+  if (this.isNew) {
+    this.$locals.hubTell = true;
+    this.$locals.hubWas = null;
+  } else if (this.isModified("status")) {
+    const before = await this.constructor.findById(this._id).select("status").lean();
+    this.$locals.hubTell = true;
+    this.$locals.hubWas = before ? before.status : null;
+  }
+});
+assetSchema.post("save", function (doc) {
+  if (doc.$locals.hubTell) require("../services/cmdhub").statusChanged(doc, doc.$locals.hubWas);
+});
+assetSchema.post("deleteOne", { document: true, query: false }, function (doc) {
+  require("../services/cmdhub").statusChanged(doc, doc.status, null);
+});
+
 assetSchema.index({ org: 1, domain: 1, sub: 1 });
 assetSchema.index({ status: 1 });
 assetSchema.index({ name: "text" });
