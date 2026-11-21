@@ -41,7 +41,7 @@ export default function Login() {
         {/* Brand half */}
         <div className="gbl-brand">
           <img src={`${process.env.PUBLIC_URL}/trustlab-logo.png`} alt="" aria-hidden="true" />
-          <h1>Trust Prism</h1>
+          <h1>TrustMark</h1>
           <div className="gbl-dept">Brand &amp; Communications</div>
         </div>
 
@@ -79,7 +79,7 @@ export default function Login() {
 
           <div className="gbl-foot">
             <LockOutlinedIcon sx={{ fontSize: 13 }} />
-            <span>Authorized access only · Trust Prism</span>
+            <span>Authorized access only · TrustMark</span>
           </div>
         </form>
       </div>
